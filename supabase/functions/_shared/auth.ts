@@ -35,9 +35,8 @@ export async function getAuthenticatedUser(req: Request) {
 export function verifyWebhookSecret(req: Request): boolean {
   const webhookSecret = Deno.env.get("LNBITS_WEBHOOK_SECRET");
   if (!webhookSecret) {
-    // If no secret configured, allow (for development)
-    console.warn("LNBITS_WEBHOOK_SECRET not set — webhook verification skipped");
-    return true;
+    console.error("LNBITS_WEBHOOK_SECRET not set — rejecting webhook for security");
+    return false;
   }
 
   const url = new URL(req.url);

@@ -1,7 +1,9 @@
-import { corsHeaders } from "../_shared/cors.ts";
+import { getCorsHeaders } from "../_shared/cors.ts";
 import { getAuthenticatedUser, createAdminClient } from "../_shared/auth.ts";
 
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -15,14 +17,15 @@ Deno.serve(async (req) => {
     // Check if wallet already exists (idempotency)
     const { data: existingProfile } = await supabase
       .from("profiles")
-      .select("lnbits_id, lnbits_admin_key, lnbits_invoice_key")
+      .select("lnbits_id")
       .eq("id", userId)
       .single();
 
     if (existingProfile?.lnbits_id) {
       return new Response(
         JSON.stringify({
-          wallet: { id: existingProfile.lnbits_id, message: "Wallet already exists" },
+          wallet_id: existingProfile.lnbits_id,
+          message: "Wallet already exists",
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -71,7 +74,8 @@ Deno.serve(async (req) => {
       throw new Error("Failed to save wallet keys to profile");
     }
 
-    return new Response(JSON.stringify({ wallet }), {
+    // FIX 1: Only return wallet_id and balance — never expose keys to client
+    return new Response(JSON.stringify({ wallet_id: wallet.id, balance: 0 }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {

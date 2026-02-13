@@ -1,0 +1,11 @@
+#!/bin/sh
+# Pre-commit hook: prevent committing .env files with secrets
+
+if git diff --cached --name-only | grep -qE '^\\.env$|^\\.env\\.local$|^\\.env\\.production$'; then
+  echo ""
+  echo "🚫 ERROR: Attempting to commit an .env file!"
+  echo "   .env files may contain secrets and should never be committed."
+  echo "   Remove the file from staging with: git reset HEAD <file>"
+  echo ""
+  exit 1
+fi

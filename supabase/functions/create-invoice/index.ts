@@ -1,7 +1,9 @@
-import { corsHeaders } from "../_shared/cors.ts";
+import { getCorsHeaders } from "../_shared/cors.ts";
 import { getAuthenticatedUser, createAdminClient } from "../_shared/auth.ts";
 
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -12,7 +14,11 @@ Deno.serve(async (req) => {
 
     const { amountSats } = await req.json();
     const amount = amountSats;
-    if (!amount || amount <= 0) throw new Error("Invalid amount");
+
+    // FIX 10: Validate amount is a positive integer within reasonable bounds
+    if (!amount || typeof amount !== "number" || !Number.isInteger(amount) || amount < 100 || amount > 10_000_000) {
+      throw new Error("Invalid amount: must be an integer between 100 and 10,000,000 sats");
+    }
 
     const supabase = createAdminClient();
 

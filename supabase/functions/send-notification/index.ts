@@ -1,4 +1,4 @@
-import { corsHeaders } from "../_shared/cors.ts";
+import { getCorsHeaders } from "../_shared/cors.ts";
 import { createAdminClient } from "../_shared/auth.ts";
 
 interface NotificationPayload {
@@ -10,11 +10,32 @@ interface NotificationPayload {
 }
 
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   try {
+    // FIX 6: Verify this is an internal/service call
+    const authHeader = req.headers.get("Authorization");
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+    if (!authHeader || !serviceKey) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const token = authHeader.replace("Bearer ", "");
+    if (token !== serviceKey) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const payload: NotificationPayload = await req.json();
     const { type, recipientUserId, jobId, amount, resolution } = payload;
 
@@ -89,7 +110,6 @@ Deno.serve(async (req) => {
         body = "You have a new notification on Bereka. Check your dashboard for details.";
     }
 
-    // Send email via external SMTP API (e.g. Resend, SendGrid)
     // Send email via Resend API
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
 
@@ -101,7 +121,7 @@ Deno.serve(async (req) => {
           "Authorization": `Bearer ${resendApiKey}`,
         },
         body: JSON.stringify({
-          from: "Bereka <noreply@bereka.co.za>", // Update this to your verified domain email
+          from: "Bereka <noreply@bereka.co.za>",
           to: [email],
           subject,
           html: `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">

@@ -1,47 +1,54 @@
-import { corsHeaders } from "../_shared/cors.ts";
+import { getCorsHeaders } from "../_shared/cors.ts";
 import { getAuthenticatedUser, createAdminClient } from "../_shared/auth.ts";
 import { processIncomingPayment } from "../_shared/processIncomingPayment.ts";
 
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   try {
     // Authenticate the user making the polling request
-    await getAuthenticatedUser(req);
+    const user = await getAuthenticatedUser(req);
 
     const { paymentHash } = await req.json();
     if (!paymentHash) throw new Error("Missing paymentHash");
 
+    // FIX 10: Validate paymentHash format (hex string, 64 chars for SHA256)
+    if (typeof paymentHash !== "string" || !/^[a-f0-9]{64}$/i.test(paymentHash)) {
+      throw new Error("Invalid paymentHash format");
+    }
+
     const supabase = createAdminClient();
 
-    // Check if already completed (fast path, no LNbits call needed)
+    // FIX 4: Verify payment intent exists AND belongs to the authenticated user
     const { data: intent } = await supabase
       .from("payment_intents")
-      .select("status")
+      .select("status, user_id, amount_sats")
       .eq("payment_hash", paymentHash)
       .single();
 
-    if (intent?.status === "COMPLETED") {
+    if (!intent || intent.user_id !== user.id) {
+      return new Response(JSON.stringify({ error: "Payment not found" }), {
+        status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Check if already completed (fast path, no LNbits call needed)
+    if (intent.status === "COMPLETED") {
       return new Response(JSON.stringify({ paid: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     // Get the user's LNbits invoice key to check payment status
-    const { data: paymentIntent } = await supabase
-      .from("payment_intents")
-      .select("user_id, amount_sats")
-      .eq("payment_hash", paymentHash)
-      .single();
-
-    if (!paymentIntent) throw new Error("Payment intent not found");
-
     const { data: profile } = await supabase
       .from("profiles")
       .select("lnbits_invoice_key")
-      .eq("id", paymentIntent.user_id)
+      .eq("id", user.id)
       .single();
 
     const lnbitsUrl = Deno.env.get("LNBITS_URL");
