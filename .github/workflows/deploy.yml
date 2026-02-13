@@ -1,48 +1,29 @@
-name: Deploy to Supabase
+name: Full Deploy
 
 on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
-  deploy:
-    runs-on: ubuntu-latest
-
-    env:
+  supabase:
+    uses: ./.github/workflows/deploy-supabase.yml
+    with:
+      deploy_migrations: true
+      deploy_functions: true
+    secrets:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+      LNBITS_URL: ${{ secrets.LNBITS_URL }}
+      LNBITS_ADMIN_KEY: ${{ secrets.LNBITS_ADMIN_KEY }}
+      LNBITS_WEBHOOK_SECRET: ${{ secrets.LNBITS_WEBHOOK_SECRET }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
 
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: supabase/setup-cli@v1
-        with:
-          version: latest
-
-      - name: Link Supabase Project
-        run: supabase link --project-ref $SUPABASE_PROJECT_ID
-
-      - name: Deploy Migrations
-        run: supabase db push
-
-      - name: Set Edge Function Secrets
-        run: |
-          supabase secrets set \
-            LNBITS_URL=${{ secrets.LNBITS_URL }} \
-            LNBITS_ADMIN_KEY=${{ secrets.LNBITS_ADMIN_KEY }} \
-            LNBITS_WEBHOOK_SECRET=${{ secrets.LNBITS_WEBHOOK_SECRET }} \
-            RESEND_API_KEY=${{ secrets.RESEND_API_KEY }}
-        # SMTP_URL is optional; add it to secrets if email is configured
-
-      - name: Deploy Edge Functions
-        run: |
-          supabase functions deploy create-wallet
-          supabase functions deploy create-invoice
-          supabase functions deploy check-payment
-          supabase functions deploy fund-escrow
-          supabase functions deploy approve-payout
-          supabase functions deploy resolve-dispute
-          supabase functions deploy send-notification
-          supabase functions deploy lnbits-webhook --no-verify-jwt
+  frontend:
+    uses: ./.github/workflows/deploy-frontend.yml
+    secrets:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}

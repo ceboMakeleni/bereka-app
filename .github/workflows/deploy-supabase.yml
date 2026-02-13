@@ -1,0 +1,85 @@
+name: Deploy Supabase
+
+on:
+  workflow_dispatch:
+    inputs:
+      deploy_migrations:
+        description: "Deploy database migrations"
+        required: false
+        type: boolean
+        default: true
+      deploy_functions:
+        description: "Deploy edge functions"
+        required: false
+        type: boolean
+        default: true
+  workflow_call:
+    inputs:
+      deploy_migrations:
+        required: false
+        type: boolean
+        default: true
+      deploy_functions:
+        required: false
+        type: boolean
+        default: true
+    secrets:
+      SUPABASE_ACCESS_TOKEN:
+        required: true
+      SUPABASE_DB_PASSWORD:
+        required: true
+      SUPABASE_PROJECT_ID:
+        required: true
+      LNBITS_URL:
+        required: true
+      LNBITS_ADMIN_KEY:
+        required: true
+      LNBITS_WEBHOOK_SECRET:
+        required: true
+      RESEND_API_KEY:
+        required: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link Supabase Project
+        run: supabase link --project-ref $SUPABASE_PROJECT_ID
+
+      - name: Deploy Migrations
+        if: ${{ inputs.deploy_migrations }}
+        run: supabase db push
+
+      - name: Set Edge Function Secrets
+        if: ${{ inputs.deploy_functions }}
+        run: |
+          supabase secrets set \
+            LNBITS_URL=${{ secrets.LNBITS_URL }} \
+            LNBITS_ADMIN_KEY=${{ secrets.LNBITS_ADMIN_KEY }} \
+            LNBITS_WEBHOOK_SECRET=${{ secrets.LNBITS_WEBHOOK_SECRET }} \
+            RESEND_API_KEY=${{ secrets.RESEND_API_KEY }}
+          # SMTP_URL is optional; add it to secrets if email is configured
+
+      - name: Deploy Edge Functions
+        if: ${{ inputs.deploy_functions }}
+        run: |
+          supabase functions deploy create-wallet
+          supabase functions deploy create-invoice
+          supabase functions deploy check-payment
+          supabase functions deploy fund-escrow
+          supabase functions deploy approve-payout
+          supabase functions deploy resolve-dispute
+          supabase functions deploy send-notification
+          supabase functions deploy lnbits-webhook --no-verify-jwt
