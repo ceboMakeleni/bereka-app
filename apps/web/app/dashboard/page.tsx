@@ -24,7 +24,7 @@ export default async function DashboardPage() {
         .from('jobs')
         .select('*', { count: 'exact', head: true })
         .eq('creator_id', user.id)
-        .in('status', ['OPEN', 'IN_PROGRESS', 'REVIEW'])
+        .in('status', ['OPEN', 'FUNDED', 'IN_PROGRESS', 'REVIEW', 'DISPUTED'])
 
     // Fetch jobs assigned to user as worker
     const { count: workingJobsCount } = await supabase

@@ -7,7 +7,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { CalendarClock, Search } from "lucide-react"
+import { CalendarClock, Search, ChevronDown, ChevronUp } from "lucide-react"
 
 interface Job {
     id: string
@@ -33,6 +33,8 @@ export default function JobsPage() {
     const [maxBudget, setMaxBudget] = useState("")
     const [currentPage, setCurrentPage] = useState(1)
     const [totalCount, setTotalCount] = useState(0)
+    const [showAllCategories, setShowAllCategories] = useState(false)
+    const MAX_VISIBLE_CATEGORIES = 5
 
     useEffect(() => {
         fetchCategories()
@@ -48,7 +50,7 @@ export default function JobsPage() {
             .from('job_categories')
             .select('name')
             .order('name')
-        
+
         if (data) {
             setCategories(data.map(c => c.name))
         }
@@ -57,7 +59,7 @@ export default function JobsPage() {
     const fetchJobs = async () => {
         setLoading(true)
         const supabase = createClient()
-        
+
         // Build query
         let query = supabase
             .from('jobs')
@@ -161,14 +163,14 @@ export default function JobsPage() {
                     <div className="space-y-2">
                         <Label className="text-xs">Category</Label>
                         <div className="flex flex-wrap gap-2">
-                            <Button 
-                                variant={!selectedCategory ? "default" : "outline"} 
+                            <Button
+                                variant={!selectedCategory ? "default" : "outline"}
                                 size="sm"
                                 onClick={() => handleCategoryChange(null)}
                             >
                                 All
                             </Button>
-                            {categories.map((cat) => (
+                            {(showAllCategories ? categories : categories.slice(0, MAX_VISIBLE_CATEGORIES)).map((cat) => (
                                 <Button
                                     key={cat}
                                     variant={selectedCategory === cat ? "default" : "outline"}
@@ -178,13 +180,27 @@ export default function JobsPage() {
                                     {cat}
                                 </Button>
                             ))}
+                            {categories.length > MAX_VISIBLE_CATEGORIES && (
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setShowAllCategories(!showAllCategories)}
+                                    className="text-muted-foreground"
+                                >
+                                    {showAllCategories ? (
+                                        <>Show Less <ChevronUp className="ml-1 h-3 w-3" /></>
+                                    ) : (
+                                        <>+{categories.length - MAX_VISIBLE_CATEGORIES} more <ChevronDown className="ml-1 h-3 w-3" /></>
+                                    )}
+                                </Button>
+                            )}
                         </div>
                     </div>
 
                     {/* Sort Filter */}
                     <div className="space-y-2">
                         <Label htmlFor="sort" className="text-xs">Sort By</Label>
-                        <select 
+                        <select
                             id="sort"
                             value={sortBy}
                             onChange={(e) => handleSortChange(e.target.value as typeof sortBy)}
