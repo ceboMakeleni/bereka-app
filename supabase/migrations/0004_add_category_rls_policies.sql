@@ -1,6 +1,11 @@
 -- Add RLS policies for category management by admins
 -- This migration adds INSERT, UPDATE, and DELETE policies for job_categories table
 
+-- Drop existing policies first (idempotent)
+DROP POLICY IF EXISTS "Admins can create categories" ON job_categories;
+DROP POLICY IF EXISTS "Admins can update categories" ON job_categories;
+DROP POLICY IF EXISTS "Admins can delete categories" ON job_categories;
+
 -- Allow admins to insert new categories
 CREATE POLICY "Admins can create categories"
   ON job_categories FOR INSERT
