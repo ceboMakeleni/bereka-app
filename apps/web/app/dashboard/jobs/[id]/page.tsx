@@ -9,6 +9,9 @@ import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { ShareButton } from "@/components/ShareButton"
+import { SocialShareButtons } from "@/components/SocialShareButtons"
+import { generateJobUrl, generateShareText } from "@/lib/share-utils"
 import { toast } from "sonner"
 
 interface Job {
@@ -210,14 +213,14 @@ export default function JobDetailsPage() {
 
     const uploadFiles = async (userId: string, submissionId: string): Promise<string[]> => {
         if (selectedFiles.length === 0) return []
-        
+
         const supabase = createClient()
         const uploadedPaths: string[] = []
 
         for (const file of selectedFiles) {
             const fileExt = file.name.split('.').pop()
             const fileName = `${userId}/${submissionId}/${Date.now()}.${fileExt}`
-            
+
             const { error: uploadError } = await supabase.storage
                 .from('submissions')
                 .upload(fileName, file)
@@ -282,13 +285,13 @@ export default function JobDetailsPage() {
 
             setJob({ ...job, status: 'REVIEW' })
             setSubmissions([
-                { 
-                    id: submissionId, 
-                    content: submissionText, 
+                {
+                    id: submissionId,
+                    content: submissionText,
                     attachments: attachmentPaths.length > 0 ? attachmentPaths : null,
-                    created_at: new Date().toISOString(), 
-                    worker_id: user.id 
-                }, 
+                    created_at: new Date().toISOString(),
+                    worker_id: user.id
+                },
                 ...submissions
             ])
             setSubmissionText("")
@@ -414,7 +417,7 @@ export default function JobDetailsPage() {
         } catch (e: any) {
             console.error(e)
             toast.error(e.message || "Failed to raise dispute")
-        } finally{
+        } finally {
             setActionLoading(false)
         }
     }
@@ -545,6 +548,26 @@ export default function JobDetailsPage() {
                     )}
                 </CardContent>
                 <CardFooter className="flex flex-col gap-4">
+                    {/* Share Section - Only for OPEN/FUNDED jobs */}
+                    {(job.status === 'OPEN' || job.status === 'FUNDED') && (
+                        <div className="w-full border-b pb-4 space-y-3">
+                            <h4 className="text-sm font-semibold">Share this job</h4>
+                            <div className="flex flex-col gap-2">
+                                <ShareButton
+                                    url={generateJobUrl(job.id)}
+                                    title={job.title}
+                                    text={generateShareText(job)}
+                                    variant="outline"
+                                    className="w-full"
+                                />
+                                <SocialShareButtons
+                                    url={generateJobUrl(job.id)}
+                                    text={generateShareText(job)}
+                                />
+                            </div>
+                        </div>
+                    )}
+
                     {/* CREATOR: Fund Escrow (when job is OPEN and not yet funded) */}
                     {job.status === 'OPEN' && isCreator && (
                         <div className="w-full space-y-3">
@@ -610,9 +633,9 @@ export default function JobDetailsPage() {
                                     </p>
                                 )}
                             </div>
-                            <Button 
-                                onClick={handleSubmitWork} 
-                                disabled={actionLoading || !submissionText} 
+                            <Button
+                                onClick={handleSubmitWork}
+                                disabled={actionLoading || !submissionText}
                                 className="w-full"
                             >
                                 {uploadingFiles ? 'Uploading files...' : actionLoading ? 'Submitting...' : 'Submit Work'}

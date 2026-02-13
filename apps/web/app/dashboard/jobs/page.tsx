@@ -3,10 +3,13 @@
 import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase"
 import Link from "next/link"
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
+import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { ShareButton } from "@/components/ShareButton"
+import { SocialShareButtons } from "@/components/SocialShareButtons"
+import { generateJobUrl, generateShareText } from "@/lib/share-utils"
 import { CalendarClock, Search, ChevronDown, ChevronUp } from "lucide-react"
 
 interface Job {
@@ -275,6 +278,23 @@ export default function JobsPage() {
                                         </div>
                                     )}
                                 </CardContent>
+                                {/* Share Section - Only for OPEN/FUNDED jobs */}
+                                {(job.status === 'OPEN' || job.status === 'FUNDED') && (
+                                    <CardFooter className="pt-4 border-t flex-col gap-3">
+                                        <ShareButton
+                                            url={generateJobUrl(job.id)}
+                                            title={job.title}
+                                            text={generateShareText(job)}
+                                            variant="outline"
+                                            size="sm"
+                                            className="w-full"
+                                        />
+                                        <SocialShareButtons
+                                            url={generateJobUrl(job.id)}
+                                            text={generateShareText(job)}
+                                        />
+                                    </CardFooter>
+                                )}
                             </Link>
                         </Card>
                     ))
