@@ -5,8 +5,10 @@ import { createClient } from "@/lib/supabase"
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { ShieldAlert, Download } from "lucide-react"
+import { ShieldAlert, Download, Pencil, Trash2, Plus, X } from "lucide-react"
 import { toast } from "sonner"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 
 interface DisputedJob {
     id: string
@@ -62,16 +64,26 @@ interface PaymentEvent {
     processed_at: string
 }
 
+interface Category {
+    id: string
+    name: string
+    created_at: string
+}
+
 export default function AdminPage() {
-    const [activeTab, setActiveTab] = useState<'disputes' | 'ledger'>('disputes')
+    const [activeTab, setActiveTab] = useState<'disputes' | 'ledger' | 'categories'>('disputes')
     const [disputes, setDisputes] = useState<DisputedJob[]>([])
     const [ledgerEntries, setLedgerEntries] = useState<LedgerEntry[]>([])
     const [accounts, setAccounts] = useState<Account[]>([])
     const [paymentEvents, setPaymentEvents] = useState<PaymentEvent[]>([])
+    const [categories, setCategories] = useState<Category[]>([])
     const [loading, setLoading] = useState(true)
     const [actionLoading, setActionLoading] = useState<string | null>(null)
     const [user, setUser] = useState<any>(null)
     const [isAdmin, setIsAdmin] = useState(false)
+    const [editingCategory, setEditingCategory] = useState<Category | null>(null)
+    const [newCategoryName, setNewCategoryName] = useState("")
+    const [isAddingCategory, setIsAddingCategory] = useState(false)
 
     useEffect(() => {
         const init = async () => {
@@ -142,6 +154,14 @@ export default function AdminPage() {
 
             if (eventsData) setPaymentEvents(eventsData)
 
+            // Fetch categories
+            const { data: categoriesData } = await supabase
+                .from('job_categories')
+                .select('*')
+                .order('name')
+
+            if (categoriesData) setCategories(categoriesData)
+
             setLoading(false)
         }
         init()
@@ -163,6 +183,147 @@ export default function AdminPage() {
         } catch (e: any) {
             console.error(e)
             toast.error(e.message || "Resolution failed")
+        } finally {
+            setActionLoading(null)
+        }
+    }
+
+    const validateCategoryName = (name: string): string | null => {
+        const trimmed = name.trim()
+        if (trimmed.length < 2) return "Category name must be at least 2 characters"
+        if (trimmed.length > 50) return "Category name must be 50 characters or less"
+
+        // Check for duplicates (case-insensitive)
+        const isDuplicate = categories.some(
+            cat => cat.name.toLowerCase() === trimmed.toLowerCase() && cat.id !== editingCategory?.id
+        )
+        if (isDuplicate) return "A category with this name already exists"
+
+        // Allow only alphanumeric, spaces, &, -, /
+        const validPattern = /^[a-zA-Z0-9\s&\-\/]+$/
+        if (!validPattern.test(trimmed)) return "Category name can only contain letters, numbers, spaces, &, -, /"
+
+        return null
+    }
+
+    const handleCreateCategory = async () => {
+        const validationError = validateCategoryName(newCategoryName)
+        if (validationError) {
+            toast.error(validationError)
+            return
+        }
+
+        const supabase = createClient()
+        const trimmed = newCategoryName.trim()
+
+        try {
+            const { error } = await supabase
+                .from('job_categories')
+                .insert({ name: trimmed })
+
+            if (error) throw error
+
+            // Refresh categories
+            const { data } = await supabase
+                .from('job_categories')
+                .select('*')
+                .order('name')
+
+            if (data) setCategories(data)
+            setNewCategoryName("")
+            setIsAddingCategory(false)
+            toast.success(`Category "${trimmed}" created successfully`)
+        } catch (e: any) {
+            console.error(e)
+            toast.error(e.message || "Failed to create category")
+        }
+    }
+
+    const handleUpdateCategory = async (category: Category, newName: string) => {
+        const validationError = validateCategoryName(newName)
+        if (validationError) {
+            toast.error(validationError)
+            return
+        }
+
+        const supabase = createClient()
+        const trimmed = newName.trim()
+        const oldName = category.name
+
+        try {
+            // Update the category name
+            const { error: categoryError } = await supabase
+                .from('job_categories')
+                .update({ name: trimmed })
+                .eq('id', category.id)
+
+            if (categoryError) throw categoryError
+
+            // Update all jobs with the old category name to the new name
+            const { error: jobsError } = await supabase
+                .from('jobs')
+                .update({ category: trimmed })
+                .eq('category', oldName)
+
+            if (jobsError) throw jobsError
+
+            // Refresh categories
+            const { data } = await supabase
+                .from('job_categories')
+                .select('*')
+                .order('name')
+
+            if (data) setCategories(data)
+            setEditingCategory(null)
+            toast.success(`Category updated to "${trimmed}"`)
+        } catch (e: any) {
+            console.error(e)
+            toast.error(e.message || "Failed to update category")
+        }
+    }
+
+    const handleDeleteCategory = async (category: Category) => {
+        // Prevent deletion of "Other" category
+        if (category.name === 'Other') {
+            toast.error('The "Other" category cannot be deleted')
+            return
+        }
+
+        if (!confirm(`Are you sure you want to delete "${category.name}"? All jobs in this category will be moved to "Other".`)) {
+            return
+        }
+
+        setActionLoading(category.id)
+        const supabase = createClient()
+
+        try {
+            // First, update all jobs with this category to "Other"
+            const { error: jobsError } = await supabase
+                .from('jobs')
+                .update({ category: 'Other' })
+                .eq('category', category.name)
+
+            if (jobsError) throw jobsError
+
+            // Then delete the category
+            const { error: deleteError } = await supabase
+                .from('job_categories')
+                .delete()
+                .eq('id', category.id)
+
+            if (deleteError) throw deleteError
+
+            // Refresh categories
+            const { data } = await supabase
+                .from('job_categories')
+                .select('*')
+                .order('name')
+
+            if (data) setCategories(data)
+            toast.success(`Category "${category.name}" deleted successfully`)
+        } catch (e: any) {
+            console.error(e)
+            toast.error(e.message || "Failed to delete category")
         } finally {
             setActionLoading(null)
         }
@@ -235,6 +396,12 @@ export default function AdminPage() {
                 >
                     Ledger & Reconciliation
                 </Button>
+                <Button
+                    variant={activeTab === 'categories' ? 'default' : 'ghost'}
+                    onClick={() => setActiveTab('categories')}
+                >
+                    Categories
+                </Button>
             </div>
 
             {/* Disputes Tab */}
@@ -253,7 +420,7 @@ export default function AdminPage() {
                                         Budget: {Number(dispute.budget_sats).toLocaleString()} sats
                                     </CardDescription>
                                     <div className="text-xs text-muted-foreground mt-1">
-                                        Creator: {dispute.creator_profile?.username || dispute.creator_id.slice(0, 8) + '...'} 
+                                        Creator: {dispute.creator_profile?.username || dispute.creator_id.slice(0, 8) + '...'}
                                         {' '}&bull;{' '}
                                         Worker: {dispute.worker_profile?.username || dispute.worker_id?.slice(0, 8) || 'N/A'}
                                     </div>
@@ -274,7 +441,7 @@ export default function AdminPage() {
                                                     <div className="flex flex-wrap gap-1 mt-1">
                                                         {openDispute.evidence_urls.map((url, i) => (
                                                             <a key={i} href={url} target="_blank" rel="noopener noreferrer"
-                                                               className="text-xs text-blue-600 hover:underline">
+                                                                className="text-xs text-blue-600 hover:underline">
                                                                 Evidence {i + 1}
                                                             </a>
                                                         ))}
@@ -372,8 +539,8 @@ export default function AdminPage() {
                         <CardHeader>
                             <div className="flex justify-between items-center">
                                 <CardTitle>Recent Ledger Entries</CardTitle>
-                                <Button 
-                                    size="sm" 
+                                <Button
+                                    size="sm"
                                     variant="outline"
                                     onClick={() => exportToCsv(ledgerEntries, 'ledger_entries.csv')}
                                 >
@@ -420,8 +587,8 @@ export default function AdminPage() {
                         <CardHeader>
                             <div className="flex justify-between items-center">
                                 <CardTitle>Recent Payment Events</CardTitle>
-                                <Button 
-                                    size="sm" 
+                                <Button
+                                    size="sm"
                                     variant="outline"
                                     onClick={() => exportToCsv(paymentEvents, 'payment_events.csv')}
                                 >
@@ -460,6 +627,154 @@ export default function AdminPage() {
                                     </tbody>
                                 </table>
                             </div>
+                        </CardContent>
+                    </Card>
+                </div>
+            )}
+
+            {/* Categories Tab */}
+            {activeTab === 'categories' && (
+                <div className="space-y-6">
+                    <Card>
+                        <CardHeader>
+                            <div className="flex justify-between items-center">
+                                <div>
+                                    <CardTitle>Manage Categories</CardTitle>
+                                    <CardDescription>Add, edit, or remove job categories</CardDescription>
+                                </div>
+                                {!isAddingCategory && (
+                                    <Button onClick={() => setIsAddingCategory(true)}>
+                                        <Plus className="h-4 w-4 mr-2" />
+                                        Add Category
+                                    </Button>
+                                )}
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            {/* Add Category Form */}
+                            {isAddingCategory && (
+                                <div className="mb-6 p-4 border rounded-lg bg-muted/50">
+                                    <div className="flex items-end gap-2">
+                                        <div className="flex-1">
+                                            <Label htmlFor="new-category">New Category Name</Label>
+                                            <Input
+                                                id="new-category"
+                                                placeholder="Enter category name..."
+                                                value={newCategoryName}
+                                                onChange={(e) => setNewCategoryName(e.target.value)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') handleCreateCategory()
+                                                    if (e.key === 'Escape') {
+                                                        setIsAddingCategory(false)
+                                                        setNewCategoryName("")
+                                                    }
+                                                }}
+                                                autoFocus
+                                            />
+                                        </div>
+                                        <Button onClick={handleCreateCategory}>
+                                            Create
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            onClick={() => {
+                                                setIsAddingCategory(false)
+                                                setNewCategoryName("")
+                                            }}
+                                        >
+                                            <X className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground mt-2">
+                                        2-50 characters. Only letters, numbers, spaces, &, -, / allowed.
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* Categories Table */}
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm">
+                                    <thead>
+                                        <tr className="border-b">
+                                            <th className="text-left p-3">Category Name</th>
+                                            <th className="text-left p-3">Created</th>
+                                            <th className="text-right p-3">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {categories.map(category => (
+                                            <tr key={category.id} className="border-b hover:bg-muted/50">
+                                                <td className="p-3">
+                                                    {editingCategory?.id === category.id ? (
+                                                        <Input
+                                                            value={editingCategory.name}
+                                                            onChange={(e) => setEditingCategory({ ...editingCategory, name: e.target.value })}
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === 'Enter') handleUpdateCategory(category, editingCategory.name)
+                                                                if (e.key === 'Escape') setEditingCategory(null)
+                                                            }}
+                                                            autoFocus
+                                                            className="max-w-xs"
+                                                        />
+                                                    ) : (
+                                                        <span className="font-medium">{category.name}</span>
+                                                    )}
+                                                </td>
+                                                <td className="p-3 text-muted-foreground">
+                                                    {new Date(category.created_at).toLocaleDateString()}
+                                                </td>
+                                                <td className="p-3">
+                                                    <div className="flex gap-2 justify-end">
+                                                        {editingCategory?.id === category.id ? (
+                                                            <>
+                                                                <Button
+                                                                    size="sm"
+                                                                    onClick={() => handleUpdateCategory(category, editingCategory.name)}
+                                                                >
+                                                                    Save
+                                                                </Button>
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    onClick={() => setEditingCategory(null)}
+                                                                >
+                                                                    Cancel
+                                                                </Button>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    onClick={() => setEditingCategory(category)}
+                                                                >
+                                                                    <Pencil className="h-3 w-3 mr-1" />
+                                                                    Edit
+                                                                </Button>
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="destructive"
+                                                                    onClick={() => handleDeleteCategory(category)}
+                                                                    disabled={actionLoading === category.id || category.name === 'Other'}
+                                                                >
+                                                                    <Trash2 className="h-3 w-3 mr-1" />
+                                                                    Delete
+                                                                </Button>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {categories.length === 0 && (
+                                <div className="text-center py-8">
+                                    <p className="text-muted-foreground">No categories yet. Create one to get started.</p>
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
                 </div>
