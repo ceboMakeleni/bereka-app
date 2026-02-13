@@ -35,16 +35,15 @@ Deno.serve(async (req) => {
       throw new Error("Missing LNbits configuration");
     }
 
-    const response = await fetch(`${lnbitsUrl}/usermanager/api/v1/users`, {
+    // Create a new LNbits account + wallet via the core API
+    const response = await fetch(`${lnbitsUrl}/api/v1/account`, {
       method: "POST",
       headers: {
         "X-Api-Key": adminKey,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        admin_id: "1",
-        user_name: userId,
-        wallet_name: "default",
+        name: userId,
       }),
     });
 
@@ -54,13 +53,14 @@ Deno.serve(async (req) => {
       throw new Error(`LNbits API error: ${response.status}`);
     }
 
-    const data = await response.json();
-    const wallet = data.wallets[0];
+    // Core API returns wallet data directly:
+    // { id, user, adminkey, inkey, name, ... }
+    const wallet = await response.json();
 
     const { error: updateError } = await supabase
       .from("profiles")
       .update({
-        lnbits_id: data.id,
+        lnbits_id: wallet.user,
         lnbits_admin_key: wallet.adminkey,
         lnbits_invoice_key: wallet.inkey,
       })
