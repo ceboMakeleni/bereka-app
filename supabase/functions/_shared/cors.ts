@@ -6,6 +6,7 @@ const ALLOWED_ORIGINS = [
     'http://localhost:3000',
     'https://bereka.co.za',
     'https://www.bereka.co.za',
+    'https://bereka-app.vercel.app',
 ];
 
 /**
