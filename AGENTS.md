@@ -190,9 +190,10 @@ When adding new UI components, follow the exact same pattern as `components/ui/b
 
 ### 5.2 Page Patterns
 
-- **Client pages** (`"use client"`): Login, Signup, Wallet, Jobs, Job Detail, Admin, Settings
+- **Client pages** (`"use client"`): Login, Signup, Wallet, Jobs, Job Detail, Admin, Settings, Applications, Disputes
 - **Server pages**: Dashboard home (`app/dashboard/page.tsx`)
 - **Static pages**: Landing, Privacy, Terms
+- **Auth pages**: Login, Signup, Forgot Password, Reset Password
 
 Client pages follow this pattern:
 ```typescript
@@ -221,12 +222,40 @@ export default function PageName() {
 }
 ```
 
+**Custom hooks** (in `lib/hooks/`):
+- `useAuth()` — Returns `{ user, profile, role, isAdmin, loading, error, refresh }`. Use instead of inline auth fetching.
+- `useBalance()` — Returns `{ available, escrow, total, loading, error, refresh }`. Use instead of inline balance fetching.
+
+Import from `@/lib/hooks`:
+```typescript
+import { useAuth, useBalance } from '@/lib/hooks'
+
+const { user, profile, isAdmin, loading } = useAuth()
+const { available, escrow, refresh: refreshBalance } = useBalance()
+```
+
 ### 5.3 Auth Flow
 
 1. Middleware (`middleware.ts`) intercepts all requests
 2. Refreshes Supabase session cookies
 3. Redirects unauthenticated users from `/dashboard/*` to `/login`
 4. Redirects authenticated users from `/login`, `/signup` to `/dashboard`
+5. `/forgot-password` and `/reset-password` are public (not protected)
+
+### 5.4 Error Handling
+
+- **Global error boundary**: `app/error.tsx` — catches unhandled errors at root level
+- **Dashboard error boundary**: `app/dashboard/error.tsx` — catches errors within dashboard (sidebar stays visible)
+- **404 page**: `app/not-found.tsx` — branded 404 with navigation links
+- **Loading states**: `app/dashboard/loading.tsx` — skeleton loading for route transitions
+
+### 5.5 Testing
+
+- **Framework**: Vitest + React Testing Library + jsdom
+- **Config**: `vitest.config.ts` in `apps/web/`
+- **Run tests**: `npm run test` (one-off) or `npm run test:watch` (watch mode)
+- **Type-check**: `npm run type-check`
+- Name test files `*.test.ts` / `*.test.tsx` alongside the source file
 
 ### 5.4 Toast Notifications
 
