@@ -160,7 +160,11 @@ All UI components in `components/ui/` follow the Shadcn pattern:
 4. Use `React.forwardRef` and set `displayName`
 5. Support `asChild` via Radix `Slot` where appropriate
 
-**Available components:** `Button`, `Card` (CardHeader, CardTitle, CardDescription, CardContent), `Input`, `Label`, `Textarea`, `Badge`, `Toaster`
+**Available components:** `Button`, `Card` (CardHeader, CardTitle, CardDescription, CardContent), `Input`, `Label`, `Textarea`, `Badge`, `Toaster`, `Skeleton`, `Dialog` (DialogHeader, DialogFooter, DialogTitle, DialogDescription, DialogContent), `Tabs` (TabsList, TabsTrigger, TabsContent), `Select` (SelectTrigger, SelectContent, SelectItem, SelectValue), `Separator`
+
+**Reusable components:** `PageHeader` (title, description, icon, action slot), `EmptyState` (icon, title, description, action button)
+
+> ⚠️ **CORS**: Edge functions must use `getCorsHeaders(req)` from `_shared/cors.ts`. The wildcard `corsHeaders` export has been removed. Never import `corsHeaders` — it no longer exists.
 
 **Button variants:** `default`, `destructive`, `outline`, `secondary`, `ghost`, `link`
 **Button sizes:** `default`, `sm`, `lg`, `icon`

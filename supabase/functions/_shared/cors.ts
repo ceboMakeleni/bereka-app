@@ -24,11 +24,5 @@ export function getCorsHeaders(req: Request): Record<string, string> {
     };
 }
 
-/**
- * @deprecated Use getCorsHeaders(req) instead for proper origin checking.
- * Kept temporarily for backward compatibility during migration.
- */
-export const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+// NOTE: The deprecated wildcard `corsHeaders` export was removed.
+// All edge functions must use getCorsHeaders(req) for proper origin checking.

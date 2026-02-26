@@ -88,17 +88,22 @@ export default function DisputesPage() {
         setActionLoading(disputeId)
         const supabase = createClient()
 
+        // Map UI resolution to edge function resolution format
+        const resolutionMap: Record<string, string> = {
+            'FAVOR_CREATOR': 'REFUND',
+            'FAVOR_WORKER': 'PAY_WORKER',
+        }
+
         try {
-            // Need a backend edge function ideally for this, but for now we manually simulate if admin
-            // In a real app this would definitely call an edge function with admin privileges.
+            const { data, error } = await supabase.functions.invoke('resolve-dispute', {
+                body: {
+                    jobId: disputes.find(d => d.id === disputeId)?.job_id,
+                    resolution: resolutionMap[resolution],
+                },
+            })
 
-            // 1. Mark dispute as resolved
-            const { error: disputeErr } = await supabase
-                .from('disputes')
-                .update({ status: 'RESOLVED' })
-                .eq('id', disputeId)
-
-            if (disputeErr) throw disputeErr
+            if (error) throw error
+            if (data?.error) throw new Error(data.error)
 
             toast.success(`Dispute resolved in favor of the ${resolution === 'FAVOR_CREATOR' ? 'creator' : 'worker'}!`)
             await fetchDisputes()

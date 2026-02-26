@@ -43,7 +43,7 @@ export default function WalletPage() {
             // Fetch balances
             const { data: accounts } = await supabase
                 .from('accounts')
-                .select('type, balance_sats')
+                .select('id, type, balance_sats')
                 .eq('user_id', user.id)
 
             if (accounts) {
@@ -51,17 +51,31 @@ export default function WalletPage() {
                 const escrow = accounts.find(a => a.type === 'ESCROW')
                 if (avail) setBalance(avail.balance_sats)
                 if (escrow) setEscrowBalance(escrow.balance_sats)
+
+                // Fetch ledger entries for user's accounts
+                const accountIds = accounts.map(a => a.id)
+                if (accountIds.length > 0) {
+                    const { data: ledgerData } = await supabase
+                        .from('ledger_entries')
+                        .select('*')
+                        .or(`debit_account_id.in.(${accountIds.join(',')}),credit_account_id.in.(${accountIds.join(',')})`)
+                        .order('created_at', { ascending: false })
+                        .limit(20)
+
+                    if (ledgerData) {
+                        // Transform ledger entries: credits to user accounts are positive, debits are negative
+                        const transformed = ledgerData.map(entry => ({
+                            id: entry.id,
+                            amount_sats: accountIds.includes(entry.credit_account_id)
+                                ? entry.amount_sats
+                                : -entry.amount_sats,
+                            description: entry.reference_type.replace(/_/g, ' ').toLowerCase(),
+                            created_at: entry.created_at,
+                        }))
+                        setTransactions(transformed)
+                    }
+                }
             }
-
-            // Fetch ledger entries
-            const { data: ledgerData } = await supabase
-                .from('ledger_entries')
-                .select('*')
-                .eq('user_id', user.id)
-                .order('created_at', { ascending: false })
-                .limit(20)
-
-            if (ledgerData) setTransactions(ledgerData)
         }
         fetchBalance()
     }, [isPaid])
