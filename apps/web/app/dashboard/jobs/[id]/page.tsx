@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { useParams, useRouter } from "next/navigation"
+import Link from "next/link"
 import { createClient } from "@/lib/supabase"
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -151,59 +152,7 @@ export default function JobDetailsPage() {
         }
     }
 
-    const handleAcceptApplication = async (application: Application) => {
-        if (!user || !job) return
-        setActionLoading(true)
-        const supabase = createClient()
 
-        try {
-            // Accept this application
-            const { error: updateAppErr } = await supabase
-                .from('applications')
-                .update({ status: 'ACCEPTED' })
-                .eq('id', application.id)
-
-            if (updateAppErr) throw updateAppErr
-
-            // Reject other pending applications
-            await supabase
-                .from('applications')
-                .update({ status: 'REJECTED' })
-                .eq('job_id', job.id)
-                .neq('id', application.id)
-                .eq('status', 'PENDING')
-
-            // Assign worker to job
-            const { error: jobError } = await supabase
-                .from('jobs')
-                .update({
-                    worker_id: application.worker_id,
-                    status: 'IN_PROGRESS',
-                })
-                .eq('id', job.id)
-
-            if (jobError) throw jobError
-
-            // Notify worker
-            try {
-                await supabase.functions.invoke('send-notification', {
-                    body: {
-                        type: 'JOB_ACCEPTED',
-                        recipientUserId: application.worker_id,
-                        jobId: job.id,
-                    }
-                })
-            } catch (_) { /* non-blocking */ }
-
-            await fetchJob()
-            toast.success("Application accepted!")
-        } catch (e: any) {
-            console.error(e)
-            toast.error(e.message || "Failed to accept application")
-        } finally {
-            setActionLoading(false)
-        }
-    }
 
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
@@ -472,34 +421,17 @@ export default function JobDetailsPage() {
                     </div>
 
                     {/* Applications Section (visible to creator on OPEN/FUNDED jobs) */}
-                    {isCreator && (job.status === 'OPEN' || job.status === 'FUNDED') && applications.length > 0 && (
-                        <div className="space-y-3">
-                            <h3 className="font-semibold">Applications ({applications.length})</h3>
-                            {applications.map((app) => (
-                                <div key={app.id} className="border rounded p-4 flex justify-between items-start">
-                                    <div>
-                                        <p className="font-medium">{app.profiles?.username || app.worker_id.slice(0, 8) + '...'}</p>
-                                        <p className="text-sm text-muted-foreground mt-1">{app.cover_letter}</p>
-                                        <p className="text-xs text-muted-foreground mt-1">
-                                            Applied {new Date(app.created_at).toLocaleDateString()}
-                                        </p>
-                                    </div>
-                                    {app.status === 'PENDING' && (
-                                        <Button
-                                            size="sm"
-                                            onClick={() => handleAcceptApplication(app)}
-                                            disabled={actionLoading}
-                                        >
-                                            Accept
-                                        </Button>
-                                    )}
-                                    {app.status !== 'PENDING' && (
-                                        <Badge className={app.status === 'ACCEPTED' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-500'}>
-                                            {app.status}
-                                        </Badge>
-                                    )}
-                                </div>
-                            ))}
+                    {isCreator && (job.status === 'OPEN' || job.status === 'FUNDED') && (
+                        <div className="space-y-3 p-4 border rounded-md bg-muted/50 flex flex-col sm:flex-row justify-between items-center">
+                            <div>
+                                <h3 className="font-semibold text-lg flex items-center gap-2">Applications <Badge variant="secondary">{applications.length}</Badge></h3>
+                                <p className="text-sm text-muted-foreground">Review and accept freelancers for your job.</p>
+                            </div>
+                            <Button asChild>
+                                <Link href={`/dashboard/jobs/${job.id}/applications`}>
+                                    View Applications
+                                </Link>
+                            </Button>
                         </div>
                     )}
 

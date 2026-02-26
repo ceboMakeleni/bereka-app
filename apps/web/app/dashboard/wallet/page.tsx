@@ -8,7 +8,14 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import QRCode from "react-qr-code"
 import { toast } from "sonner"
-import { Copy, RefreshCw, CheckCircle } from "lucide-react"
+import { Copy, RefreshCw, CheckCircle, ArrowDownLeft, ArrowUpRight, Clock, History } from "lucide-react"
+
+interface LedgerEntry {
+    id: string
+    amount_sats: number
+    description: string
+    created_at: string
+}
 
 const INVOICE_EXPIRY_SECONDS = 3600 // 1 hour
 const POLL_INTERVAL_MS = 3000
@@ -22,6 +29,7 @@ export default function WalletPage() {
     const [checkingNow, setCheckingNow] = useState(false)
     const [balance, setBalance] = useState(0)
     const [escrowBalance, setEscrowBalance] = useState(0)
+    const [transactions, setTransactions] = useState<LedgerEntry[]>([])
     const [secondsLeft, setSecondsLeft] = useState(INVOICE_EXPIRY_SECONDS)
     const [isExpired, setIsExpired] = useState(false)
     const invoiceCreatedAt = useRef<number>(0)
@@ -32,6 +40,7 @@ export default function WalletPage() {
             const { data: { user } } = await supabase.auth.getUser()
             if (!user) return
 
+            // Fetch balances
             const { data: accounts } = await supabase
                 .from('accounts')
                 .select('type, balance_sats')
@@ -43,6 +52,16 @@ export default function WalletPage() {
                 if (avail) setBalance(avail.balance_sats)
                 if (escrow) setEscrowBalance(escrow.balance_sats)
             }
+
+            // Fetch ledger entries
+            const { data: ledgerData } = await supabase
+                .from('ledger_entries')
+                .select('*')
+                .eq('user_id', user.id)
+                .order('created_at', { ascending: false })
+                .limit(20)
+
+            if (ledgerData) setTransactions(ledgerData)
         }
         fetchBalance()
     }, [isPaid])
@@ -152,174 +171,225 @@ export default function WalletPage() {
     }
 
     return (
-        <div className="max-w-lg mx-auto space-y-6">
-            {/* Balance Card */}
-            <Card>
-                <CardHeader>
-                    <CardTitle>Your Wallet</CardTitle>
-                    <CardDescription>Current balance overview</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                    <div className="flex items-baseline justify-between">
-                        <div>
-                            <p className="text-sm text-muted-foreground">Available</p>
-                            <p className="text-3xl font-bold">{Number(balance).toLocaleString()} sats</p>
+        <div className="max-w-5xl mx-auto space-y-6">
+            <div>
+                <h1 className="text-3xl font-bold tracking-tight">Wallet</h1>
+                <p className="text-muted-foreground">Manage your Lightning balance and view transactions.</p>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-6 items-start">
+                <div className="space-y-6">
+                    {/* Balance Card */}
+                    <Card className="bg-white/5 border-white/10 glass overflow-hidden relative">
+                        <div className="absolute inset-0 bg-gradient-to-br from-yellow-500/10 to-transparent pointer-events-none" />
+                        <CardHeader>
+                            <CardTitle className="text-lg text-muted-foreground">Available Balance</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="flex flex-col gap-1">
+                                <p className="text-5xl font-bold text-foreground tracking-tight">{Number(balance).toLocaleString()} <span className="text-2xl text-yellow-500">sats</span></p>
+                            </div>
+
+                            {escrowBalance > 0 && (
+                                <div className="mt-6 pt-4 border-t border-white/10 flex justify-between items-center">
+                                    <div className="flex items-center gap-2 text-muted-foreground">
+                                        <Clock className="w-4 h-4" />
+                                        <span>Locked in Escrow</span>
+                                    </div>
+                                    <p className="font-medium">{Number(escrowBalance).toLocaleString()} sats</p>
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+
+                    {/* Top Up Card */}
+                    <Card className="bg-white/5 border-white/10 glass">
+                        <CardHeader>
+                            <CardTitle>Top Up via Lightning</CardTitle>
+                            <CardDescription>
+                                Generate a Lightning invoice and pay it from any wallet
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            {/* Step 1: Enter amount */}
+                            {!invoice && !isPaid && (
+                                <div className="space-y-4">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="amount">Amount (sats)</Label>
+                                        <Input
+                                            id="amount"
+                                            type="number"
+                                            placeholder="1000"
+                                            min="1"
+                                            value={amount}
+                                            onChange={e => setAmount(e.target.value)}
+                                            className="bg-black/20 border-white/10 focus-visible:ring-yellow-500"
+                                        />
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                        {[1000, 5000, 10000, 50000].map(preset => (
+                                            <Button
+                                                key={preset}
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => setAmount(String(preset))}
+                                                className="flex-1 bg-white/5 border-white/10 hover:bg-white/10 hover:text-yellow-500 transition-colors"
+                                            >
+                                                {(preset / 1000).toFixed(preset < 1000 ? 1 : 0)}k
+                                            </Button>
+                                        ))}
+                                    </div>
+                                    <Button
+                                        onClick={handleCreateInvoice}
+                                        disabled={loading || !amount || Number(amount) <= 0}
+                                        className="w-full bg-yellow-500 text-black hover:bg-yellow-600 font-semibold"
+                                    >
+                                        {loading ? 'Generating...' : 'Generate Invoice'}
+                                    </Button>
+                                </div>
+                            )}
+
+                            {/* Step 2: Show invoice (not expired) */}
+                            {invoice && !isPaid && !isExpired && (
+                                <div className="space-y-4 text-center animate-in fade-in duration-300">
+                                    {/* Countdown */}
+                                    <div className={`text-sm font-mono font-medium ${secondsLeft < 300 ? 'text-red-500 animate-pulse' : 'text-yellow-500'}`}>
+                                        Expires in {formatTime(secondsLeft)}
+                                    </div>
+
+                                    {/* QR Code */}
+                                    <div className="bg-white p-4 rounded-xl inline-block shadow-xl">
+                                        <QRCode value={invoice} size={220} />
+                                    </div>
+
+                                    <p className="text-sm text-muted-foreground">
+                                        Scan with your Lightning wallet or copy the invoice below
+                                    </p>
+
+                                    {/* Invoice string + copy */}
+                                    <div className="relative">
+                                        <Input
+                                            value={invoice}
+                                            readOnly
+                                            className="pr-24 text-xs font-mono bg-black/40 border-white/10 text-muted-foreground"
+                                        />
+                                        <Button
+                                            size="sm"
+                                            className="absolute right-1 top-1 h-7 bg-white/10 hover:bg-white/20 text-white"
+                                            onClick={handleCopyInvoice}
+                                        >
+                                            <Copy className="h-3 w-3 mr-1" />
+                                            Copy
+                                        </Button>
+                                    </div>
+
+                                    {/* I've Paid + Waiting */}
+                                    <div className="flex flex-col gap-2 pt-2">
+                                        <Button
+                                            variant="outline"
+                                            className="border-yellow-500/30 hover:bg-yellow-500/10 text-yellow-500"
+                                            onClick={handleManualCheck}
+                                            disabled={checkingNow}
+                                        >
+                                            {checkingNow ? (
+                                                <>
+                                                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                                                    Checking...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <CheckCircle className="h-4 w-4 mr-2" />
+                                                    I've Paid
+                                                </>
+                                            )}
+                                        </Button>
+                                    </div>
+
+                                    <Button variant="ghost" size="sm" onClick={handleReset} className="text-muted-foreground">
+                                        Cancel Payment
+                                    </Button>
+                                </div>
+                            )}
+
+                            {/* Invoice expired */}
+                            {invoice && !isPaid && isExpired && (
+                                <div className="text-center py-8 space-y-4">
+                                    <div className="text-4xl mb-2">⏳</div>
+                                    <h3 className="text-lg font-semibold text-red-500">Invoice Expired</h3>
+                                    <p className="text-sm text-muted-foreground px-4">
+                                        The invoice has expired. Generate a new one to continue your top-up.
+                                    </p>
+                                    <div className="pt-2">
+                                        <Button onClick={handleReset} variant="outline" className="w-full border-white/10 hover:bg-white/5">
+                                            Start Over
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Payment successful */}
+                            {isPaid && (
+                                <div className="text-center py-8 space-y-4 animate-in zoom-in duration-500">
+                                    <div className="w-16 h-16 bg-emerald-500/20 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                                        <CheckCircle className="w-8 h-8" />
+                                    </div>
+                                    <h3 className="text-2xl font-bold text-emerald-500">Payment Received!</h3>
+                                    <p className="text-muted-foreground pb-4">
+                                        Successfully added <strong className="text-foreground">{Number(amount).toLocaleString()} sats</strong> to your balance.
+                                    </p>
+                                    <Button onClick={handleReset} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">
+                                        Top Up Again
+                                    </Button>
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+                </div>
+
+                {/* Transaction History */}
+                <Card className="bg-white/5 border-white/10 glass md:h-full flex flex-col">
+                    <CardHeader className="border-b border-white/5 pb-4">
+                        <div className="flex items-center justify-between">
+                            <CardTitle className="text-lg flex items-center gap-2">
+                                <History className="w-5 h-5 text-muted-foreground" />
+                                Transaction History
+                            </CardTitle>
                         </div>
-                        {escrowBalance > 0 && (
-                            <div className="text-right">
-                                <p className="text-sm text-muted-foreground">In Escrow</p>
-                                <p className="text-xl font-semibold text-yellow-600">{Number(escrowBalance).toLocaleString()} sats</p>
+                    </CardHeader>
+                    <CardContent className="p-0 flex-1">
+                        {transactions.length === 0 ? (
+                            <div className="p-12 text-center text-muted-foreground">
+                                <History className="w-10 h-10 mx-auto opacity-20 mb-3" />
+                                <p>No transactions yet</p>
+                            </div>
+                        ) : (
+                            <div className="divide-y divide-white/5">
+                                {transactions.map((tx) => {
+                                    const isDeposit = tx.amount_sats > 0
+                                    return (
+                                        <div key={tx.id} className="p-4 flex items-center justify-between hover:bg-white/[0.02] transition-colors">
+                                            <div className="flex items-center gap-3">
+                                                <div className={`p-2 rounded-full ${isDeposit ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>
+                                                    {isDeposit ? <ArrowDownLeft className="w-4 h-4" /> : <ArrowUpRight className="w-4 h-4" />}
+                                                </div>
+                                                <div>
+                                                    <p className="font-medium text-sm">{tx.description}</p>
+                                                    <p className="text-xs text-muted-foreground mt-0.5">
+                                                        {new Date(tx.created_at).toLocaleString()}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div className={`font-semibold ${isDeposit ? 'text-emerald-500' : 'text-foreground'}`}>
+                                                {isDeposit ? '+' : ''}{Number(tx.amount_sats).toLocaleString()}
+                                            </div>
+                                        </div>
+                                    )
+                                })}
                             </div>
                         )}
-                    </div>
-                </CardContent>
-            </Card>
-
-            {/* Top Up Card */}
-            <Card>
-                <CardHeader>
-                    <CardTitle>Top Up via Lightning</CardTitle>
-                    <CardDescription>
-                        Generate a Lightning invoice and pay it from any wallet
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    {/* Step 1: Enter amount */}
-                    {!invoice && !isPaid && (
-                        <div className="space-y-3">
-                            <div className="space-y-2">
-                                <Label htmlFor="amount">Amount (sats)</Label>
-                                <Input
-                                    id="amount"
-                                    type="number"
-                                    placeholder="1000"
-                                    min="1"
-                                    value={amount}
-                                    onChange={e => setAmount(e.target.value)}
-                                />
-                            </div>
-                            <div className="flex gap-2">
-                                {[1000, 5000, 10000, 50000].map(preset => (
-                                    <Button
-                                        key={preset}
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => setAmount(String(preset))}
-                                        className="flex-1"
-                                    >
-                                        {(preset / 1000).toFixed(preset < 1000 ? 1 : 0)}k
-                                    </Button>
-                                ))}
-                            </div>
-                            <Button
-                                onClick={handleCreateInvoice}
-                                disabled={loading || !amount || Number(amount) <= 0}
-                                className="w-full"
-                            >
-                                {loading ? 'Generating...' : 'Generate Invoice'}
-                            </Button>
-                        </div>
-                    )}
-
-                    {/* Step 2: Show invoice (not expired) */}
-                    {invoice && !isPaid && !isExpired && (
-                        <div className="space-y-4 text-center">
-                            {/* Countdown */}
-                            <div className={`text-sm font-mono ${secondsLeft < 300 ? 'text-red-500' : 'text-muted-foreground'}`}>
-                                Expires in {formatTime(secondsLeft)}
-                            </div>
-
-                            {/* QR Code */}
-                            <div className="bg-white p-6 rounded-md inline-block">
-                                <QRCode value={invoice} size={240} />
-                            </div>
-
-                            <p className="text-sm text-muted-foreground">
-                                Scan with your Lightning wallet or copy the invoice below
-                            </p>
-
-                            {/* Invoice string + copy */}
-                            <div className="relative">
-                                <Input
-                                    value={invoice}
-                                    readOnly
-                                    className="pr-20 text-xs font-mono"
-                                />
-                                <Button
-                                    size="sm"
-                                    variant="secondary"
-                                    className="absolute right-1 top-1"
-                                    onClick={handleCopyInvoice}
-                                >
-                                    <Copy className="h-3 w-3 mr-1" />
-                                    Copy
-                                </Button>
-                            </div>
-
-                            {/* I've Paid + Waiting */}
-                            <div className="flex flex-col gap-2">
-                                <Button
-                                    variant="default"
-                                    onClick={handleManualCheck}
-                                    disabled={checkingNow}
-                                >
-                                    {checkingNow ? (
-                                        <>
-                                            <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                                            Checking...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <CheckCircle className="h-4 w-4 mr-2" />
-                                            I&apos;ve Paid
-                                        </>
-                                    )}
-                                </Button>
-                                <p className="text-xs text-muted-foreground animate-pulse">
-                                    Auto-checking every {POLL_INTERVAL_MS / 1000}s...
-                                </p>
-                            </div>
-
-                            <Button variant="ghost" size="sm" onClick={handleReset}>
-                                Cancel
-                            </Button>
-                        </div>
-                    )}
-
-                    {/* Invoice expired */}
-                    {invoice && !isPaid && isExpired && (
-                        <div className="text-center py-8 space-y-4">
-                            <div className="text-4xl">⏰</div>
-                            <h3 className="text-lg font-semibold text-red-600">Invoice Expired</h3>
-                            <p className="text-sm text-muted-foreground">
-                                The invoice has expired. Generate a new one to continue.
-                            </p>
-                            <Button onClick={handleCreateInvoice} disabled={loading}>
-                                {loading ? 'Generating...' : 'Generate New Invoice'}
-                            </Button>
-                            <div>
-                                <Button variant="ghost" size="sm" onClick={handleReset}>
-                                    Change Amount
-                                </Button>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Payment successful */}
-                    {isPaid && (
-                        <div className="text-center py-8 space-y-4">
-                            <div className="text-5xl">⚡</div>
-                            <h3 className="text-xl font-bold text-green-600">Payment Received!</h3>
-                            <p className="text-muted-foreground">
-                                {Number(amount).toLocaleString()} sats have been added to your balance.
-                            </p>
-                            <Button onClick={handleReset}>
-                                Top Up Again
-                            </Button>
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
+                    </CardContent>
+                </Card>
+            </div>
         </div>
     )
 }

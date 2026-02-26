@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
-import { Camera, X, Wallet } from "lucide-react"
+import { Camera, X, Wallet, Zap } from "lucide-react"
 
 interface Profile {
     username: string | null
@@ -193,42 +193,44 @@ export default function SettingsPage() {
     if (loading) return <div className="p-8">Loading...</div>
 
     return (
-        <div className="max-w-lg mx-auto space-y-6">
-            <h1 className="text-2xl font-bold">Settings</h1>
-            <p className="text-muted-foreground">Manage your profile and account.</p>
+        <div className="max-w-3xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+            <div>
+                <h1 className="text-3xl font-extrabold tracking-tight">Settings</h1>
+                <p className="text-muted-foreground mt-2 text-lg">Manage your profile, skills, and wallet configuration.</p>
+            </div>
 
             {/* Avatar */}
-            <Card>
-                <CardHeader>
+            <Card className="border-border/50 bg-card/40 backdrop-blur-md shadow-sm overflow-hidden">
+                <CardHeader className="bg-muted/10 border-b border-border/50 pb-4">
                     <CardTitle>Profile Picture</CardTitle>
-                    <CardDescription>Upload a profile photo.</CardDescription>
+                    <CardDescription>Upload a profile photo to personalize your account.</CardDescription>
                 </CardHeader>
-                <CardContent className="flex items-center gap-4">
+                <CardContent className="flex flex-col sm:flex-row items-start sm:items-center gap-6 pt-6 mb-4">
                     <div
-                        className="relative h-20 w-20 rounded-full bg-muted flex items-center justify-center overflow-hidden border-2 border-dashed border-muted-foreground/25 cursor-pointer hover:border-primary/50 transition-colors"
+                        className="relative h-24 w-24 rounded-full bg-muted flex flex-shrink-0 items-center justify-center overflow-hidden border-2 border-dashed border-primary/30 cursor-pointer hover:border-primary transition-colors shadow-sm"
                         onClick={() => fileInputRef.current?.click()}
                     >
                         {avatarUrl ? (
                             <img src={avatarUrl} alt="Avatar" className="h-full w-full object-cover" />
                         ) : (
-                            <Camera className="h-6 w-6 text-muted-foreground" />
+                            <Camera className="h-8 w-8 text-muted-foreground/50" />
                         )}
                         {uploadingAvatar && (
-                            <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                                <div className="h-5 w-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            <div className="absolute inset-0 bg-background/80 flex items-center justify-center backdrop-blur-sm">
+                                <div className="h-6 w-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                             </div>
                         )}
                     </div>
-                    <div>
+                    <div className="space-y-2">
                         <Button
-                            variant="outline"
-                            size="sm"
+                            variant="secondary"
                             onClick={() => fileInputRef.current?.click()}
                             disabled={uploadingAvatar}
+                            className="font-medium hover:bg-secondary/80"
                         >
                             {uploadingAvatar ? 'Uploading...' : 'Change Photo'}
                         </Button>
-                        <p className="text-xs text-muted-foreground mt-1">Max 5MB. JPG, PNG, or WebP.</p>
+                        <p className="text-sm text-muted-foreground">Max 5MB. Recommended square image (JPG, PNG, WebP).</p>
                     </div>
                     <input
                         ref={fileInputRef}
@@ -241,125 +243,154 @@ export default function SettingsPage() {
             </Card>
 
             {/* Profile Info */}
-            <Card>
-                <CardHeader>
-                    <CardTitle>Profile</CardTitle>
-                    <CardDescription>Update your display name, bio, and skills.</CardDescription>
+            <Card className="border-border/50 bg-card/40 backdrop-blur-md shadow-sm">
+                <CardHeader className="bg-muted/10 border-b border-border/50 pb-4">
+                    <CardTitle>Public Profile</CardTitle>
+                    <CardDescription>Update how you appear to others on the platform.</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="username">Username</Label>
+                <CardContent className="space-y-6 pt-6">
+                    <div className="space-y-3">
+                        <Label htmlFor="username" className="text-sm font-semibold">Username</Label>
                         <Input
                             id="username"
                             value={username}
                             onChange={e => setUsername(e.target.value)}
                             placeholder="your_username"
                             minLength={3}
+                            className="bg-background/50 border-border/50 focus-visible:ring-primary/50"
                         />
-                        <p className="text-xs text-muted-foreground">Minimum 3 characters.</p>
+                        <p className="text-xs text-muted-foreground">This is your public display name. Minimum 3 characters.</p>
                     </div>
 
-                    <div className="space-y-2">
-                        <Label htmlFor="bio">Bio</Label>
+                    <div className="space-y-3">
+                        <Label htmlFor="bio" className="text-sm font-semibold">Bio</Label>
                         <Textarea
                             id="bio"
                             value={bio}
                             onChange={e => setBio(e.target.value)}
-                            placeholder="Tell us about yourself and your experience..."
-                            rows={3}
+                            placeholder="Tell potential clients or workers about your experience and what you do best..."
+                            rows={4}
+                            className="bg-background/50 border-border/50 focus-visible:ring-primary/50 resize-y"
                         />
                     </div>
 
-                    <div className="space-y-2">
-                        <Label>Skills & Tags</Label>
-                        <div className="flex flex-wrap gap-2 mb-2">
+                    <div className="space-y-4 pt-2">
+                        <Label className="text-sm font-semibold">Skills & Expertise</Label>
+
+                        <div className="flex flex-wrap gap-2">
                             {skills.map(skill => (
-                                <Badge key={skill} variant="secondary" className="gap-1 pr-1">
+                                <Badge key={skill} variant="secondary" className="px-3 py-1 gap-1.5 text-sm bg-secondary/60 hover:bg-secondary border-border/50">
                                     {skill}
                                     <button
                                         onClick={() => removeSkill(skill)}
-                                        className="ml-1 rounded-full hover:bg-destructive/20 p-0.5"
+                                        className="ml-1 rounded-full hover:bg-destructive/20 hover:text-destructive transition-colors p-0.5"
+                                        aria-label={`Remove ${skill}`}
                                     >
-                                        <X className="h-3 w-3" />
+                                        <X className="h-3.5 w-3.5" />
                                     </button>
                                 </Badge>
                             ))}
                         </div>
-                        <div className="flex gap-2">
+
+                        <div className="flex gap-3">
                             <Input
                                 value={skillInput}
                                 onChange={e => setSkillInput(e.target.value)}
                                 onKeyDown={handleSkillKeyDown}
-                                placeholder="Type a skill and press Enter"
+                                placeholder="E.g., React, Go, Video Editing..."
                                 disabled={skills.length >= 10}
+                                className="bg-background/50 border-border/50 focus-visible:ring-primary/50"
                             />
                             <Button
-                                variant="outline"
-                                size="sm"
+                                variant="secondary"
                                 onClick={() => addSkill(skillInput)}
                                 disabled={!skillInput.trim() || skills.length >= 10}
+                                className="px-6 font-medium"
                             >
                                 Add
                             </Button>
                         </div>
+
                         {skills.length < 10 && (
-                            <div className="flex flex-wrap gap-1 mt-2">
-                                {SUGGESTED_SKILLS
-                                    .filter(s => !skills.includes(s))
-                                    .slice(0, 6)
-                                    .map(s => (
-                                        <Button
-                                            key={s}
-                                            variant="ghost"
-                                            size="sm"
-                                            className="h-6 text-xs"
-                                            onClick={() => addSkill(s)}
-                                        >
-                                            + {s}
-                                        </Button>
-                                    ))
-                                }
+                            <div className="space-y-2">
+                                <p className="text-xs font-medium text-muted-foreground">Suggested Skills:</p>
+                                <div className="flex flex-wrap gap-2">
+                                    {SUGGESTED_SKILLS
+                                        .filter(s => !skills.includes(s))
+                                        .slice(0, 8)
+                                        .map(s => (
+                                            <Button
+                                                key={s}
+                                                variant="outline"
+                                                size="sm"
+                                                className="h-7 text-xs rounded-full border-border/50 bg-background/50 hover:bg-primary/10 hover:text-primary hover:border-primary/30 transition-colors"
+                                                onClick={() => addSkill(s)}
+                                            >
+                                                + {s}
+                                            </Button>
+                                        ))
+                                    }
+                                </div>
                             </div>
                         )}
-                        <p className="text-xs text-muted-foreground">{skills.length}/10 skills added.</p>
+                        <p className="text-xs text-muted-foreground/80 font-medium">{skills.length}/10 skills added.</p>
                     </div>
 
-                    <Button onClick={handleSave} disabled={saving} className="w-full">
-                        {saving ? 'Saving...' : 'Save Changes'}
-                    </Button>
+                    <div className="pt-6 border-t border-border/40">
+                        <Button
+                            onClick={handleSave}
+                            disabled={saving}
+                            className="bg-gradient-to-r from-primary to-accent hover:opacity-90 transition-opacity font-semibold px-8"
+                        >
+                            {saving ? 'Saving Changes...' : 'Save Profile'}
+                        </Button>
+                    </div>
                 </CardContent>
             </Card>
 
             {/* Account Info */}
-            <Card>
-                <CardHeader>
-                    <CardTitle>Account Info</CardTitle>
+            <Card className="border-border/50 bg-card/40 backdrop-blur-md shadow-sm">
+                <CardHeader className="bg-muted/10 border-b border-border/50 pb-4">
+                    <CardTitle>Account Status</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-3">
-                    <div className="flex justify-between items-center">
-                        <span className="text-sm text-muted-foreground">Role</span>
-                        <Badge variant="secondary">{profile?.role ?? 'worker'}</Badge>
+                <CardContent className="space-y-6 pt-6">
+                    <div className="grid gap-6 sm:grid-cols-2">
+                        <div className="space-y-2 p-4 rounded-xl bg-background/50 border border-border/40">
+                            <span className="text-sm font-semibold text-muted-foreground block">Account Role</span>
+                            <div className="flex items-center gap-2">
+                                <Badge variant="secondary" className="capitalize px-3 py-1 bg-primary/10 text-primary border-primary/20">
+                                    {profile?.role ?? 'Worker'}
+                                </Badge>
+                            </div>
+                        </div>
+                        <div className="space-y-2 p-4 rounded-xl bg-background/50 border border-border/40">
+                            <span className="text-sm font-semibold text-muted-foreground block">Lightning Wallet</span>
+                            <div className="flex items-center gap-2">
+                                <Badge variant={profile?.lnbits_id ? 'default' : 'outline'} className={profile?.lnbits_id ? "bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20 px-3 py-1" : "px-3 py-1"}>
+                                    {profile?.lnbits_id ? 'Active & Provisioned' : 'Not Provisioned'}
+                                </Badge>
+                            </div>
+                        </div>
                     </div>
-                    <div className="flex justify-between items-center">
-                        <span className="text-sm text-muted-foreground">Lightning Wallet</span>
-                        <Badge variant={profile?.lnbits_id ? 'default' : 'outline'}>
-                            {profile?.lnbits_id ? 'Provisioned' : 'Not provisioned'}
-                        </Badge>
-                    </div>
+
                     {!profile?.lnbits_id && (
-                        <div className="pt-2 border-t">
-                            <p className="text-sm text-muted-foreground mb-2">
-                                Your Lightning wallet was not created during signup. Create one to start receiving payments and funding jobs.
-                            </p>
-                            <Button
-                                onClick={handleCreateWallet}
-                                disabled={walletStatus === "creating"}
-                                variant="outline"
-                                className="w-full gap-2"
-                            >
-                                <Wallet className="h-4 w-4" />
-                                {walletStatus === "creating" ? "Creating wallet..." : "Create Lightning Wallet"}
-                            </Button>
+                        <div className="pt-4 mt-2 border-t border-border/40">
+                            <div className="flex flex-col sm:flex-row gap-4 items-center justify-between p-4 rounded-xl bg-yellow-500/5 border border-yellow-500/20">
+                                <div>
+                                    <h4 className="font-semibold text-yellow-600 dark:text-yellow-500 mb-1 flex items-center gap-2"><Zap className="h-4 w-4" /> Wallet Required</h4>
+                                    <p className="text-sm text-muted-foreground">
+                                        You need a Lightning wallet to receive payments or fund jobs.
+                                    </p>
+                                </div>
+                                <Button
+                                    onClick={handleCreateWallet}
+                                    disabled={walletStatus === "creating"}
+                                    className="w-full sm:w-auto gap-2 bg-yellow-500 hover:bg-yellow-600 text-white border-0 shadow-md"
+                                >
+                                    <Wallet className="h-4 w-4" />
+                                    {walletStatus === "creating" ? "Creating wallet..." : "Create Wallet Now"}
+                                </Button>
+                            </div>
                         </div>
                     )}
                 </CardContent>
