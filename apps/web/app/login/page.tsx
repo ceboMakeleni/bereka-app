@@ -10,6 +10,7 @@ import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription }
 import { Label } from "@/components/ui/label"
 import { Zap } from "lucide-react"
 import { toast } from "sonner"
+import { loginSchema, validate } from "@/lib/validations"
 
 export default function LoginPage() {
     const router = useRouter()
@@ -19,6 +20,13 @@ export default function LoginPage() {
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault()
+
+        const result = validate(loginSchema, { email, password })
+        if (!result.success) {
+            toast.error(result.error)
+            return
+        }
+
         setLoading(true)
         const supabase = createClient()
         const { error } = await supabase.auth.signInWithPassword({

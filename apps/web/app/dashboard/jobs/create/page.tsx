@@ -8,6 +8,14 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { createClient } from "@/lib/supabase"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select"
+import { createJobSchema, validate } from "@/lib/validations"
 
 export default function CreateJobPage() {
     const router = useRouter()
@@ -33,8 +41,22 @@ export default function CreateJobPage() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
-        setLoading(true)
         setError("")
+
+        // Validate with Zod
+        const result = validate(createJobSchema, {
+            title: formData.title,
+            description: formData.description,
+            budget: formData.budget,
+            category: formData.category || undefined,
+            deadline: formData.deadline || undefined,
+        })
+        if (!result.success) {
+            setError(result.error)
+            return
+        }
+
+        setLoading(true)
 
         const supabase = createClient()
         const { data: { user } } = await supabase.auth.getUser()
@@ -129,17 +151,19 @@ export default function CreateJobPage() {
 
                         <div className="space-y-2">
                             <Label htmlFor="category">Category</Label>
-                            <select
-                                id="category"
-                                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                            <Select
                                 value={formData.category}
-                                onChange={e => setFormData({ ...formData, category: e.target.value })}
+                                onValueChange={(val) => setFormData({ ...formData, category: val })}
                             >
-                                <option value="">Select a category...</option>
-                                {categories.map(cat => (
-                                    <option key={cat.id} value={cat.name}>{cat.name}</option>
-                                ))}
-                            </select>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select a category..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {categories.map(cat => (
+                                        <SelectItem key={cat.id} value={cat.name}>{cat.name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         </div>
 
                         <div className="space-y-2">

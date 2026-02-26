@@ -30,15 +30,19 @@ bereka-app/
 │   ├── app/               # App Router pages
 │   │   ├── dashboard/     # Auth-protected pages
 │   │   │   ├── admin/     # Admin dispute console + ledger
+│   │   │   ├── applications/ # Job applications tracker
+│   │   │   ├── disputes/  # Dispute management
 │   │   │   ├── jobs/      # Job list, create, detail
 │   │   │   ├── wallet/    # Balance + top-up via Lightning
 │   │   │   └── settings/  # Profile + wallet management
 │   │   ├── login/
 │   │   ├── signup/
+│   │   ├── forgot-password/ # Password reset flow
+│   │   ├── reset-password/  # Supabase auth callback
 │   │   ├── privacy/
 │   │   └── terms/
 │   ├── components/ui/     # Shadcn components
-│   └── lib/               # Supabase clients, types, utils
+│   └── lib/               # Supabase clients, types, utils, hooks, validations
 ├── supabase/
 │   ├── migrations/        # Single consolidated migration
 │   ├── functions/         # Deno Edge Functions
@@ -214,7 +218,24 @@ Supabase injects `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE
 On push to `main`:
 - Migrations are deployed via `supabase db push`
 - Edge Functions are deployed via `supabase functions deploy`
-- Frontend deploys automatically via Vercel Git integration
+- Frontend CI runs: Install → Lint → Type Check → Test → Build → Deploy
+
+## Testing
+
+```bash
+# Run tests (one-off)
+npm run test
+
+# Run tests in watch mode
+npm run test:watch
+
+# Type check
+npm run type-check
+```
+
+Test framework: Vitest + React Testing Library + jsdom. Test files live alongside source files as `*.test.ts` / `*.test.tsx`.
+
+See also: [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) for UI component guidelines.
 
 ## User Flows
 
@@ -242,6 +263,8 @@ OPEN → FUNDED → IN_PROGRESS → REVIEW → COMPLETED
 
 - [SETUP.md](SETUP.md) – Detailed setup guide for Windows, macOS, and Linux
 - [API.md](API.md) – Edge Function API reference and examples
+- [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) – Color tokens, components, typography, and design guidelines
+- [AGENTS.md](AGENTS.md) – Agent coding guidelines and project conventions
 - [TROUBLESHOOTING.md](TROUBLESHOOTING.md) – Common issues and solutions
 
 ## Contribution Guidelines

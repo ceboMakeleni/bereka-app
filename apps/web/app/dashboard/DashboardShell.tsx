@@ -6,6 +6,7 @@ import { useState, useEffect } from "react"
 import { LayoutDashboard, Wallet, Briefcase, PlusCircle, Settings, LogOut, ShieldCheck, Menu, X, AlertCircle, FileText } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { createClient } from "@/lib/supabase"
+import { ThemeToggle } from "@/components/theme-toggle"
 
 const navItems = [
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -110,6 +111,9 @@ export default function DashboardShell({ children, isAdmin, username }: Dashboar
                         <Settings className="h-4 w-4" />
                         <span className="hidden md:inline">Settings</span>
                     </Link>
+                    <div className="flex items-center justify-between">
+                        <ThemeToggle />
+                    </div>
                 </div>
             </aside>
 
@@ -160,14 +164,17 @@ export default function DashboardShell({ children, isAdmin, username }: Dashboar
                         <Settings className="h-4 w-4" />
                         <span>Settings</span>
                     </Link>
-                    <Button
-                        variant="ghost"
-                        className="w-full justify-start gap-3 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg p-3 h-auto"
-                        onClick={handleSignOut}
-                    >
-                        <LogOut className="h-4 w-4" />
-                        <span className="font-medium">Sign Out</span>
-                    </Button>
+                    <div className="flex items-center justify-between">
+                        <ThemeToggle />
+                        <Button
+                            variant="ghost"
+                            className="flex-1 justify-start gap-3 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg p-3 h-auto"
+                            onClick={handleSignOut}
+                        >
+                            <LogOut className="h-4 w-4" />
+                            <span className="font-medium">Sign Out</span>
+                        </Button>
+                    </div>
                 </div>
             </aside>
 

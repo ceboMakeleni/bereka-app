@@ -7,23 +7,38 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter }
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select"
 import Link from "next/link"
 import { toast } from "sonner"
+import { signupSchema, validate } from "@/lib/validations"
 
 export default function SignupPage() {
     const [email, setEmail] = useState("")
     const [password, setPassword] = useState("")
     const [username, setUsername] = useState("")
-    const [role, setRole] = useState("worker")
+    const [role, setRole] = useState<"worker" | "client">("worker")
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState("")
     const router = useRouter()
 
     const handleSignup = async (e: React.FormEvent) => {
         e.preventDefault()
-        setLoading(true)
         setError("")
 
+        // Validate with Zod
+        const result = validate(signupSchema, { username, email, password, role })
+        if (!result.success) {
+            setError(result.error)
+            return
+        }
+
+        setLoading(true)
         const supabase = createClient()
 
         // 1. Sign up with Supabase Auth
@@ -112,6 +127,9 @@ export default function SignupPage() {
                                 required
                                 minLength={3}
                             />
+                            <p className="text-xs text-muted-foreground">
+                                Letters, numbers, dashes, and underscores only
+                            </p>
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="email">Email</Label>
@@ -133,20 +151,23 @@ export default function SignupPage() {
                                 value={password}
                                 onChange={e => setPassword(e.target.value)}
                                 required
-                                minLength={6}
+                                minLength={8}
                             />
+                            <p className="text-xs text-muted-foreground">
+                                Minimum 8 characters, 1 uppercase letter, 1 number
+                            </p>
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="role">I want to</Label>
-                            <select
-                                id="role"
-                                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
-                                value={role}
-                                onChange={e => setRole(e.target.value)}
-                            >
-                                <option value="worker">Earn sats (Worker)</option>
-                                <option value="client">Post tasks (Client)</option>
-                            </select>
+                            <Select value={role} onValueChange={(val) => setRole(val as "worker" | "client")}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select a role" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="worker">Earn sats (Worker)</SelectItem>
+                                    <SelectItem value="client">Post tasks (Client)</SelectItem>
+                                </SelectContent>
+                            </Select>
                         </div>
                     </CardContent>
                     <CardFooter className="flex flex-col gap-4">
