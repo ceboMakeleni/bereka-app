@@ -58,7 +58,7 @@ export default function DisputesPage() {
             .select(`
                 *,
                 jobs ( title, creator_id, worker_id ),
-                profiles!disputes_opened_by_fkey ( username )
+                profiles!disputes_opened_by_profiles_fkey ( username )
             `)
             .order('created_at', { ascending: false })
 
