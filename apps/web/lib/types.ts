@@ -172,8 +172,19 @@ export interface ResolveDisputeResponse {
   success: boolean
 }
 
+export interface Notification {
+  id: string
+  user_id: string
+  type: NotificationType
+  title: string
+  message: string
+  job_id: string | null
+  read: boolean
+  created_at: string
+}
+
 export interface SendNotificationRequest {
-  type: 'APPLICATION_RECEIVED' | 'JOB_ACCEPTED' | 'SUBMISSION_READY' | 'PAYOUT_APPROVED' | 'DISPUTE_OPENED' | 'PAYMENT_RECEIVED'
+  type: 'APPLICATION_RECEIVED' | 'JOB_ACCEPTED' | 'SUBMISSION_READY' | 'PAYOUT_APPROVED' | 'DISPUTE_OPENED' | 'DISPUTE_RESOLVED' | 'PAYMENT_RECEIVED'
   recipientUserId: string
   jobId?: string
   amount?: number

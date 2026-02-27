@@ -146,6 +146,27 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Persist in-app notification to the database
+    try {
+      const { error: insertError } = await supabase
+        .from("notifications")
+        .insert({
+          user_id: recipientUserId,
+          type,
+          title: subject,
+          message: body,
+          job_id: jobId ?? null,
+          read: false,
+        });
+
+      if (insertError) {
+        console.error("Failed to insert notification:", insertError);
+      }
+    } catch (dbError) {
+      // Non-blocking — email was already sent
+      console.error("Notification DB insert failed:", dbError);
+    }
+
     return new Response(
       JSON.stringify({ success: true, type, recipient: email }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }

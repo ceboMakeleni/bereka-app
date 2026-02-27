@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useRouter, usePathname } from "next/navigation"
 import { useState, useEffect } from "react"
-import { LayoutDashboard, Wallet, Briefcase, PlusCircle, Settings, LogOut, ShieldCheck, Menu, X, AlertCircle, FileText } from "lucide-react"
+import { LayoutDashboard, Wallet, Briefcase, PlusCircle, Settings, LogOut, ShieldCheck, Menu, X, AlertCircle, FileText, Bell } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { createClient } from "@/lib/supabase"
 import { ThemeToggle } from "@/components/theme-toggle"
@@ -14,6 +14,7 @@ const navItems = [
     { href: '/dashboard/jobs', label: 'Jobs', icon: Briefcase },
     { href: '/dashboard/jobs/create', label: 'Create Job', icon: PlusCircle },
     { href: '/dashboard/applications', label: 'Applications', icon: FileText },
+    { href: '/dashboard/notifications', label: 'Notifications', icon: Bell },
     { href: '/dashboard/disputes', label: 'Disputes', icon: AlertCircle },
 ]
 
