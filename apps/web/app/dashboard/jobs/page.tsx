@@ -253,7 +253,7 @@ export default function JobsPage() {
                         <Card key={job.id} className="hover:border-primary transition-colors cursor-pointer">
                             <Link href={`/dashboard/jobs/${job.id}`}>
                                 <CardHeader>
-                                    <div className="flex justify-between items-start">
+                                    <div className="flex flex-col sm:flex-row sm:justify-between items-start gap-4">
                                         <div>
                                             <CardTitle className="text-base">{job.title}</CardTitle>
                                             {job.category && (
@@ -263,7 +263,7 @@ export default function JobsPage() {
                                             )}
                                         </div>
                                         <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-primary text-primary-foreground hover:bg-primary/80">
-                                            {Number(job.budget_sats).toLocaleString()} sats
+                                            {Intl.NumberFormat('en-US', { notation: 'compact', compactDisplay: 'short' }).format(Number(job.budget_sats))} sats
                                         </span>
                                     </div>
                                 </CardHeader>

@@ -90,7 +90,7 @@ export default async function DashboardPage() {
 
             <div className="col-span-full mt-4">
                 <h2 className="text-lg font-semibold mb-4">Quick Actions</h2>
-                <div className="flex gap-4">
+                <div className="flex flex-wrap gap-4">
                     <Link href="/dashboard/wallet">
                         <Button>Top Up Wallet</Button>
                     </Link>

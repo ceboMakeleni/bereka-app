@@ -62,13 +62,13 @@ export default async function Home() {
                   Earn sats instantly for completing small digital tasks. No minimum withdrawals, no friction, absolute freedom.
                 </p>
               </div>
-              <div className="space-x-4 flex flex-col sm:flex-row gap-4 mt-8">
-                <Link href="/signup">
+              <div className="flex flex-col sm:flex-row gap-4 mt-8 w-full justify-center">
+                <Link href="/signup" className="w-full sm:w-auto">
                   <Button size="lg" className="rounded-full h-14 px-8 text-base font-semibold shadow-xl shadow-primary/20 hover:scale-105 transition-all duration-300 w-full sm:w-auto bg-gradient-to-r from-primary to-accent">
                     Start Earning Now <ArrowRight className="ml-2 h-5 w-5" />
                   </Button>
                 </Link>
-                <Link href="/dashboard/jobs">
+                <Link href="/dashboard/jobs" className="w-full sm:w-auto">
                   <Button variant="outline" size="lg" className="rounded-full h-14 px-8 text-base font-semibold hover:bg-primary/5 border-border shadow-sm hover:scale-105 transition-all duration-300 w-full sm:w-auto bg-background/50 backdrop-blur-sm">
                     Browse Available Tasks
                   </Button>
@@ -146,7 +146,7 @@ export default async function Home() {
             <Link className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors" href="/privacy">
               Privacy Policy
             </Link>
-            <a className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
+            <a href="mailto:hello@bereka.co.za" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
               Contact Us
             </a>
           </nav>
