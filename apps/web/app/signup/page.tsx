@@ -97,6 +97,7 @@ export default function SignupPage() {
             toast.warning("Account created, but wallet setup failed. You can retry from Settings.")
         }
 
+        router.refresh()
         router.push('/dashboard')
     }
 
