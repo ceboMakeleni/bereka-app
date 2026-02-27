@@ -40,6 +40,10 @@ export default function ApplicationsPage() {
     const [filter, setFilter] = useState<'ALL' | 'PENDING' | 'ACCEPTED' | 'REJECTED'>('ALL')
 
     useEffect(() => {
+        document.title = "My Applications — Bereka"
+    }, [])
+
+    useEffect(() => {
         const fetchApplications = async () => {
             const supabase = createClient()
             const { data: { user } } = await supabase.auth.getUser()

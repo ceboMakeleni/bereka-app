@@ -86,6 +86,10 @@ export default function AdminPage() {
     const [isAddingCategory, setIsAddingCategory] = useState(false)
 
     useEffect(() => {
+        document.title = "Admin — Bereka"
+    }, [])
+
+    useEffect(() => {
         const init = async () => {
             const supabase = createClient()
             const { data: { user } } = await supabase.auth.getUser()

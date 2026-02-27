@@ -31,6 +31,10 @@ export default function CreateJobPage() {
     })
 
     useEffect(() => {
+        document.title = "Create Task — Bereka"
+    }, [])
+
+    useEffect(() => {
         const fetchCategories = async () => {
             const supabase = createClient()
             const { data } = await supabase.from('job_categories').select('id, name').order('name')
@@ -134,7 +138,7 @@ export default function CreateJobPage() {
                 <form onSubmit={handleSubmit}>
                     <CardContent className="space-y-4">
                         {error && (
-                            <div className="text-sm text-destructive bg-destructive/10 p-3 rounded">
+                            <div className="text-sm text-destructive bg-destructive/10 p-3 rounded" role="alert" aria-live="assertive">
                                 {error}
                             </div>
                         )}

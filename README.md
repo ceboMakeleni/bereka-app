@@ -21,6 +21,7 @@ A Lightning micro-task marketplace MVP where workers earn sats instantly for com
 - **Admin Dispute Resolution**: Refund, pay worker, or 50-50 split with full dispute console and ledger view
 - **File Uploads**: Submission attachments and avatar uploads via Supabase Storage
 - **Email Notifications**: External SMTP API integration (Deno-compatible, no nodemailer), 7 event types
+- **Accessibility (a11y)**: WCAG 2.2 Level AA compliant — skip navigation, ARIA landmarks, focus management, live regions, `prefers-reduced-motion`, and screen reader support
 
 ## Project Structure
 
@@ -266,15 +267,17 @@ OPEN → FUNDED → IN_PROGRESS → REVIEW → COMPLETED
 - [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) – Color tokens, components, typography, and design guidelines
 - [AGENTS.md](AGENTS.md) – Agent coding guidelines and project conventions
 - [TROUBLESHOOTING.md](TROUBLESHOOTING.md) – Common issues and solutions
+- [ACCESSIBILITY.md](ACCESSIBILITY.md) – Accessibility standards and implementation guide
 
 ## Contribution Guidelines
 
 1. Fork the repository and create a feature branch from `main`
 2. Follow existing code style and conventions
 3. Run `npm run lint` before committing
-4. Ensure migrations are backward-compatible when modifying the schema
-5. Update documentation for new features or environment variables
-6. Submit a pull request with a clear description of changes
+4. **Ensure all changes meet WCAG 2.2 Level AA accessibility standards** (see [AGENTS.md §13](AGENTS.md#13-accessibility-a11y-conventions) and [ACCESSIBILITY.md](ACCESSIBILITY.md))
+5. Ensure migrations are backward-compatible when modifying the schema
+6. Update documentation for new features or environment variables
+7. Submit a pull request with a clear description of changes
 
 ## License
 

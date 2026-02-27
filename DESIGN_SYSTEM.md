@@ -19,6 +19,13 @@ All colors are defined as HSL CSS variables in `apps/web/app/globals.css`. Both 
 | `--border` | `240 15% 90%` | `240 20% 15%` | Borders |
 | `--ring` | `255 85% 55%` | `255 90% 70%` | Focus rings |
 
+### Color Contrast Requirements (WCAG 1.4.3)
+
+- **Normal text** (< 18pt): 4.5:1 minimum contrast ratio against background
+- **Large text** (≥ 18pt or 14pt bold): 3:1 minimum contrast ratio
+- **Interactive elements**: `--ring` focus indicator must be visible on both light and dark backgrounds
+- **Status colors**: Never use color alone to convey meaning — always pair with text labels or icons
+
 ### Usage Rules
 
 - **Always use semantic tokens** (`bg-card`, `text-foreground`, `border-border`) instead of hardcoded colors (`bg-white/5`, `text-white/70`)
@@ -76,6 +83,8 @@ Loaded via `next/font/google` in `layout.tsx`.
 | EmptyState | `empty-state.tsx` | Empty list placeholder with icon and CTA |
 | ThemeToggle | `theme-toggle.tsx` | Dark/light mode switcher |
 | ShareButton | `share-button.tsx` | Web Share API + clipboard fallback |
+| SkipNavigation | `skip-navigation.tsx` | Accessible "Skip to main content" link (WCAG 2.4.1) |
+| VisuallyHidden | `visually-hidden.tsx` | Screen-reader-only text utility (WCAG 1.1.1) |
 
 ---
 
@@ -108,6 +117,23 @@ Defined in `globals.css` — use for elevated surfaces:
 | `.animate-fade-in` | Fade in with subtle upward slide (300ms) |
 | `.animate-slide-in` | Slide in from left (200ms) |
 
+### Animation Accessibility (WCAG 2.3.3)
+
+All animations are automatically disabled when the user has "Reduce Motion" enabled in their OS settings:
+
+```css
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+```
+
+**When adding new animations**, always add them to the `prefers-reduced-motion` override in `globals.css`. Never create animations that cannot be disabled.
+
 ---
 
 ## Status Badge Colors
@@ -121,3 +147,5 @@ Defined in `globals.css` — use for elevated surfaces:
 | Completed | `bg-green-500/20 text-green-400` |
 | Disputed | `bg-red-500/20 text-red-400` |
 | Cancelled | `bg-gray-500/20 text-gray-400` |
+
+> **Accessibility rule**: Status badges must always include visible text (e.g., "OPEN", "FUNDED"). Color alone is never sufficient to communicate status (WCAG 1.4.1). For transaction history, include `<VisuallyHidden>` labels like "Deposit" or "Withdrawal" alongside arrow icons.

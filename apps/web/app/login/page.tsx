@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase"
@@ -17,12 +17,19 @@ export default function LoginPage() {
     const [email, setEmail] = useState("")
     const [password, setPassword] = useState("")
     const [loading, setLoading] = useState(false)
+    const [error, setError] = useState("")
+
+    useEffect(() => {
+        document.title = "Login — Bereka"
+    }, [])
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault()
+        setError("")
 
         const result = validate(loginSchema, { email, password })
         if (!result.success) {
+            setError(result.error)
             toast.error(result.error)
             return
         }
@@ -35,6 +42,7 @@ export default function LoginPage() {
         })
 
         if (error) {
+            setError(error.message)
             toast.error(error.message)
             setLoading(false)
         } else {
@@ -55,8 +63,13 @@ export default function LoginPage() {
                         Enter your email below to login to your account
                     </CardDescription>
                 </CardHeader>
-                <form onSubmit={handleLogin}>
+                <form onSubmit={handleLogin} aria-label="Login form">
                     <CardContent className="space-y-4">
+                        {error && (
+                            <div className="text-sm text-destructive bg-destructive/10 p-3 rounded" role="alert" aria-live="assertive">
+                                {error}
+                            </div>
+                        )}
                         <div className="space-y-2">
                             <Label htmlFor="email">Email</Label>
                             <Input id="email" type="email" placeholder="m@example.com" required value={email} onChange={e => setEmail(e.target.value)} />

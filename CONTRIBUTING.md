@@ -79,6 +79,22 @@ Thank you for your interest in contributing. This guide will help you get starte
 - Use `sonner` for toast notifications
 - Use the Supabase client from `lib/supabase.ts` (browser) or `lib/supabase-server.ts` (server)
 
+### Accessibility (Mandatory)
+
+All UI changes must meet **WCAG 2.2 Level AA**. Before submitting work:
+
+- Set `document.title` on every new client page (`"Page Name — Bereka"`)
+- Add `aria-hidden="true"` to decorative icons
+- Use `role="alert" aria-live="assertive"` on error containers
+- Use `aria-live="polite"` for dynamically updated content (search results, status changes)
+- Never nest interactive elements (`<button>` inside `<Link>`, etc.)
+- Ensure keyboard navigation works (Tab, Shift+Tab, Enter, Escape)
+- Add visible labels or `aria-label` to icon-only buttons
+- Test with "Reduce Motion" OS setting enabled — new animations must be disabled by the `prefers-reduced-motion` media query in `globals.css`
+- Use the `<VisuallyHidden>` component from `components/ui/visually-hidden.tsx` for screen-reader-only text
+
+See [AGENTS.md §13](AGENTS.md#13-accessibility-a11y-conventions) for the full accessibility checklist and [ACCESSIBILITY.md](ACCESSIBILITY.md) for the complete reference.
+
 ### Edge Functions (Deno)
 
 - Use `Deno.serve()` (not the deprecated `serve` from std)

@@ -638,3 +638,85 @@ Every edge function records its execution in `edge_function_logs` with timing da
 ### 12.5 Operational Guide
 
 See `LOGGING.md` for query examples, investigation procedures, and maintenance tasks.
+
+---
+
+## 13. Accessibility (a11y) Conventions
+
+> **⚠️ Mandatory**: All new features and modifications **must** comply with the accessibility standards documented here. Accessibility is not optional — it is a core requirement at the same level as security and correctness. PRs that regress accessibility will be rejected.
+
+**Target**: WCAG 2.2 Level AA compliance across the entire application.
+
+### 13.1 Hard Rules (Non-Negotiable)
+
+These rules apply to **every** page, component, and feature:
+
+1. **No nested interactive elements** — Never wrap `<button>`, `<a>`, or interactive components (e.g., `ShareButton`) inside a `<Link>` or `<a>`. This is a WCAG 4.1.2 violation.
+2. **All pages must have a title** — Set `document.title = "Page Name — Bereka"` in a `useEffect(() => {}, [])` on every client page.
+3. **All form errors must be announced** — Error containers must use `role="alert" aria-live="assertive"`.
+4. **All decorative icons must be hidden** — Add `aria-hidden="true"` to any icon used alongside visible text.
+5. **Icon-only buttons must have labels** — Use `aria-label` or include `<VisuallyHidden>` text.
+6. **Keyboard navigation must work** — Every interactive element must be operable via keyboard with visible focus indicators.
+7. **Color must not be the only indicator** — Always include text labels or icons alongside color-based status information (e.g., Deposit/Withdrawal labels on transactions, status badge text).
+
+### 13.2 Global Patterns in Place
+
+| Pattern | Implementation | WCAG | File |
+|---------|---------------|------|------|
+| Skip navigation | `<SkipNavigation>` in root layout targets `#main-content` | 2.4.1 | `app/layout.tsx` |
+| ARIA landmarks | `<nav>`, `<aside>`, `<main>` in DashboardShell | 1.3.1 | `DashboardShell.tsx` |
+| Page titles | Every client page sets `document.title` in a `useEffect` | 2.4.2 | All pages |
+| Reduced motion | `@media (prefers-reduced-motion: reduce)` in `globals.css` | 2.3.3 | `globals.css` |
+| Focus visible | Default Tailwind `focus-visible:ring` on all interactive elements | 2.4.7 | `globals.css` |
+| Mobile drawer | Focus trap, `role="dialog"`, `aria-modal`, focus return | 2.4.3 | `DashboardShell.tsx` |
+| Active page | `aria-current="page"` on active nav links | 4.1.2 | `DashboardShell.tsx` |
+| Live regions | `aria-live="polite"` on search results, payment status | 4.1.3 | `wallet/`, `jobs/` |
+| QR codes | `role="img"` + `aria-label` on container, SVG `aria-hidden` | 1.1.1 | `wallet/page.tsx` |
+
+### 13.3 Reusable Accessibility Components
+
+| Component | Path | Purpose |
+|-----------|------|---------|
+| `SkipNavigation` | `components/ui/skip-navigation.tsx` | "Skip to main content" link — rendered in root layout only |
+| `VisuallyHidden` | `components/ui/visually-hidden.tsx` | Screen-reader-only text — use for icon labels, transaction type labels, etc. |
+
+### 13.4 Checklist for New Pages and Features
+
+When adding a new page or feature, verify **all** of the following:
+
+- [ ] `document.title` is set with format `"Page Name — Bereka"`
+- [ ] Semantic heading hierarchy (`h1` → `h2` → `h3`, one `h1` per page)
+- [ ] All decorative icons have `aria-hidden="true"`
+- [ ] All interactive elements are keyboard-accessible
+- [ ] Error messages use `role="alert" aria-live="assertive"`
+- [ ] Dynamic content updates use `aria-live="polite"`
+- [ ] No nested interactive elements (`<button>` inside `<Link>`, etc.)
+- [ ] Color is not the only means of conveying information
+- [ ] Focus is managed correctly (modals trap focus, drawers return focus)
+- [ ] Pagination uses `<nav aria-label="Pagination">`
+- [ ] New animations respect `prefers-reduced-motion` (no new `@keyframes` without adding them to the media query in `globals.css`)
+
+### 13.5 Testing Requirements
+
+- **Build check**: `npx next build` must pass with zero errors
+- **Keyboard test**: Tab through the entire page — every control must be reachable and operable
+- **Screen reader check**: Test with VoiceOver (macOS) or NVDA (Windows) — all content must be announced correctly
+- **Motion check**: Enable "Reduce Motion" in OS settings and verify no animations play
+- **axe-core** (recommended): Add `@axe-core/react` for dev-mode auditing when possible
+
+### 13.6 Current Page Accessibility Status
+
+All pages listed below have been audited and updated to WCAG 2.2 AA:
+
+| Page | Title | Live Regions | Form Errors | Notes |
+|------|-------|-------------|-------------|-------|
+| Login | ✅ | — | ✅ `role="alert"` | Inline + toast errors |
+| Signup | ✅ | — | ✅ `role="alert"` | |
+| Dashboard | ✅ | — | — | Server component |
+| Wallet | ✅ | ✅ Payment, countdown, expiry | — | QR accessible, transaction labels |
+| Jobs | ✅ | ✅ Search results count | — | Nested interactive fixed |
+| Create Job | ✅ | — | ✅ `role="alert"` | |
+| Applications | ✅ | — | — | |
+| Disputes | ✅ | — | — | |
+| Settings | ✅ | — | — | |
+| Admin | ✅ | — | — | |

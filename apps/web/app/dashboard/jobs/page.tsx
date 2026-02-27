@@ -40,6 +40,10 @@ export default function JobsPage() {
     const MAX_VISIBLE_CATEGORIES = 5
 
     useEffect(() => {
+        document.title = "Open Tasks — Bereka"
+    }, [])
+
+    useEffect(() => {
         fetchCategories()
     }, [])
 
@@ -151,12 +155,13 @@ export default function JobsPage() {
             <div className="space-y-4">
                 {/* Search Bar */}
                 <div className="relative">
-                    <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" aria-hidden="true" />
                     <Input
                         placeholder="Search jobs by title or description..."
                         value={searchQuery}
                         onChange={(e) => handleSearch(e.target.value)}
                         className="pl-10"
+                        aria-label="Search tasks"
                     />
                 </div>
 
@@ -242,7 +247,7 @@ export default function JobsPage() {
             </div>
 
             {/* Results Count */}
-            <div className="text-sm text-muted-foreground">
+            <div className="text-sm text-muted-foreground" aria-live="polite" aria-atomic="true">
                 {loading ? 'Loading...' : `Showing ${jobs.length} of ${totalCount} tasks`}
             </div>
 
@@ -250,8 +255,8 @@ export default function JobsPage() {
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {!loading && jobs.length > 0 ? (
                     jobs.map((job) => (
-                        <Card key={job.id} className="hover:border-primary transition-colors cursor-pointer">
-                            <Link href={`/dashboard/jobs/${job.id}`}>
+                        <Card key={job.id} className="hover:border-primary transition-colors flex flex-col">
+                            <Link href={`/dashboard/jobs/${job.id}`} className="flex-1">
                                 <CardHeader>
                                     <div className="flex flex-col sm:flex-row sm:justify-between items-start gap-4">
                                         <div>
@@ -273,29 +278,29 @@ export default function JobsPage() {
                                     </p>
                                     {job.deadline && (
                                         <div className="flex items-center gap-1 mt-2 text-xs text-muted-foreground">
-                                            <CalendarClock className="h-3 w-3" />
+                                            <CalendarClock className="h-3 w-3" aria-hidden="true" />
                                             Due {new Date(job.deadline).toLocaleDateString()}
                                         </div>
                                     )}
                                 </CardContent>
-                                {/* Share Section - Only for OPEN/FUNDED jobs */}
-                                {(job.status === 'OPEN' || job.status === 'FUNDED') && (
-                                    <CardFooter className="pt-4 border-t flex-col gap-3">
-                                        <ShareButton
-                                            url={generateJobUrl(job.id)}
-                                            title={job.title}
-                                            text={generateShareText(job)}
-                                            variant="outline"
-                                            size="sm"
-                                            className="w-full"
-                                        />
-                                        <SocialShareButtons
-                                            url={generateJobUrl(job.id)}
-                                            text={generateShareText(job)}
-                                        />
-                                    </CardFooter>
-                                )}
                             </Link>
+                            {/* Share Section - Outside the link to avoid nested interactive elements */}
+                            {(job.status === 'OPEN' || job.status === 'FUNDED') && (
+                                <CardFooter className="pt-4 border-t flex-col gap-3">
+                                    <ShareButton
+                                        url={generateJobUrl(job.id)}
+                                        title={job.title}
+                                        text={generateShareText(job)}
+                                        variant="outline"
+                                        size="sm"
+                                        className="w-full"
+                                    />
+                                    <SocialShareButtons
+                                        url={generateJobUrl(job.id)}
+                                        text={generateShareText(job)}
+                                    />
+                                </CardFooter>
+                            )}
                         </Card>
                     ))
                 ) : !loading ? (
@@ -316,7 +321,7 @@ export default function JobsPage() {
 
             {/* Pagination */}
             {totalPages > 1 && (
-                <div className="flex justify-center gap-2 items-center">
+                <nav className="flex justify-center gap-2 items-center" aria-label="Pagination">
                     <Button
                         variant="outline"
                         size="sm"
@@ -325,7 +330,7 @@ export default function JobsPage() {
                     >
                         Previous
                     </Button>
-                    <span className="text-sm text-muted-foreground">
+                    <span className="text-sm text-muted-foreground" aria-current="page">
                         Page {currentPage} of {totalPages}
                     </span>
                     <Button
@@ -336,7 +341,7 @@ export default function JobsPage() {
                     >
                         Next
                     </Button>
-                </div>
+                </nav>
             )}
         </div>
     )

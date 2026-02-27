@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label"
 import QRCode from "react-qr-code"
 import { toast } from "sonner"
 import { Copy, RefreshCw, CheckCircle, ArrowDownLeft, ArrowUpRight, Clock, History } from "lucide-react"
+import { VisuallyHidden } from "@/components/ui/visually-hidden"
 
 interface LedgerEntry {
     id: string
@@ -33,6 +34,10 @@ export default function WalletPage() {
     const [secondsLeft, setSecondsLeft] = useState(INVOICE_EXPIRY_SECONDS)
     const [isExpired, setIsExpired] = useState(false)
     const invoiceCreatedAt = useRef<number>(0)
+
+    useEffect(() => {
+        document.title = "Wallet — Bereka"
+    }, [])
 
     useEffect(() => {
         const fetchBalance = async () => {
@@ -265,15 +270,15 @@ export default function WalletPage() {
 
                             {/* Step 2: Show invoice (not expired) */}
                             {invoice && !isPaid && !isExpired && (
-                                <div className="space-y-4 text-center animate-in fade-in duration-300">
+                                <div className="space-y-4 text-center animate-in fade-in duration-300" aria-live="polite">
                                     {/* Countdown */}
-                                    <div className={`text-sm font-mono font-medium ${secondsLeft < 300 ? 'text-red-500 animate-pulse' : 'text-yellow-500'}`}>
+                                    <div className={`text-sm font-mono font-medium ${secondsLeft < 300 ? 'text-red-500 animate-pulse' : 'text-yellow-500'}`} aria-live="polite" aria-atomic="true">
                                         Expires in {formatTime(secondsLeft)}
                                     </div>
 
                                     {/* QR Code */}
-                                    <div className="bg-white p-4 rounded-xl inline-block shadow-xl">
-                                        <QRCode value={invoice} size={220} />
+                                    <div className="bg-white p-4 rounded-xl inline-block shadow-xl" role="img" aria-label={`Lightning invoice QR code for ${Number(amount).toLocaleString()} sats`}>
+                                        <QRCode value={invoice} size={220} aria-hidden="true" />
                                     </div>
 
                                     <p className="text-sm text-muted-foreground">
@@ -285,6 +290,7 @@ export default function WalletPage() {
                                         <Input
                                             value={invoice}
                                             readOnly
+                                            aria-label="Lightning invoice string"
                                             className="pr-24 text-xs font-mono bg-black/40 border-white/10 text-muted-foreground"
                                         />
                                         <Button
@@ -327,8 +333,8 @@ export default function WalletPage() {
 
                             {/* Invoice expired */}
                             {invoice && !isPaid && isExpired && (
-                                <div className="text-center py-8 space-y-4">
-                                    <div className="text-4xl mb-2">⏳</div>
+                                <div className="text-center py-8 space-y-4" role="alert" aria-live="assertive">
+                                    <div className="text-4xl mb-2" aria-hidden="true">⏳</div>
                                     <h3 className="text-lg font-semibold text-red-500">Invoice Expired</h3>
                                     <p className="text-sm text-muted-foreground px-4">
                                         The invoice has expired. Generate a new one to continue your top-up.
@@ -343,8 +349,8 @@ export default function WalletPage() {
 
                             {/* Payment successful */}
                             {isPaid && (
-                                <div className="text-center py-8 space-y-4 animate-in zoom-in duration-500">
-                                    <div className="w-16 h-16 bg-emerald-500/20 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <div className="text-center py-8 space-y-4 animate-in zoom-in duration-500" role="alert" aria-live="assertive">
+                                    <div className="w-16 h-16 bg-emerald-500/20 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4" aria-hidden="true">
                                         <CheckCircle className="w-8 h-8" />
                                     </div>
                                     <h3 className="text-2xl font-bold text-emerald-500">Payment Received!</h3>
@@ -377,14 +383,15 @@ export default function WalletPage() {
                                 <p>No transactions yet</p>
                             </div>
                         ) : (
-                            <div className="divide-y divide-white/5">
+                            <div className="divide-y divide-white/5" role="list" aria-label="Transaction history">
                                 {transactions.map((tx) => {
                                     const isDeposit = tx.amount_sats > 0
                                     return (
-                                        <div key={tx.id} className="p-4 flex items-center justify-between hover:bg-white/[0.02] transition-colors">
+                                        <div key={tx.id} className="p-4 flex items-center justify-between hover:bg-white/[0.02] transition-colors" role="listitem">
                                             <div className="flex items-center gap-3">
                                                 <div className={`p-2 rounded-full ${isDeposit ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>
-                                                    {isDeposit ? <ArrowDownLeft className="w-4 h-4" /> : <ArrowUpRight className="w-4 h-4" />}
+                                                    {isDeposit ? <ArrowDownLeft className="w-4 h-4" aria-hidden="true" /> : <ArrowUpRight className="w-4 h-4" aria-hidden="true" />}
+                                                    <VisuallyHidden>{isDeposit ? 'Deposit' : 'Withdrawal'}</VisuallyHidden>
                                                 </div>
                                                 <div>
                                                     <p className="font-medium text-sm">{tx.description}</p>

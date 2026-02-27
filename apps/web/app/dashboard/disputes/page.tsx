@@ -32,6 +32,10 @@ export default function DisputesPage() {
     const [userRole, setUserRole] = useState<string | null>(null)
     const [actionLoading, setActionLoading] = useState<string | null>(null)
 
+    useEffect(() => {
+        document.title = "Disputes — Bereka"
+    }, [])
+
     const fetchDisputes = useCallback(async () => {
         const supabase = createClient()
         const { data: { user } } = await supabase.auth.getUser()

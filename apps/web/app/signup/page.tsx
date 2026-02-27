@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase"
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from "@/components/ui/card"
@@ -26,6 +26,10 @@ export default function SignupPage() {
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState("")
     const router = useRouter()
+
+    useEffect(() => {
+        document.title = "Sign Up — Bereka"
+    }, [])
 
     const handleSignup = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -112,7 +116,7 @@ export default function SignupPage() {
                 <form onSubmit={handleSignup}>
                     <CardContent className="space-y-4">
                         {error && (
-                            <div className="text-sm text-destructive bg-destructive/10 p-3 rounded">
+                            <div className="text-sm text-destructive bg-destructive/10 p-3 rounded" role="alert" aria-live="assertive">
                                 {error}
                             </div>
                         )}

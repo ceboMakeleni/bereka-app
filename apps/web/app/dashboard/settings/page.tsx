@@ -42,6 +42,10 @@ export default function SettingsPage() {
     const fileInputRef = useRef<HTMLInputElement>(null)
 
     useEffect(() => {
+        document.title = "Settings — Bereka"
+    }, [])
+
+    useEffect(() => {
         const fetchProfile = async () => {
             const supabase = createClient()
             const { data: { user } } = await supabase.auth.getUser()
