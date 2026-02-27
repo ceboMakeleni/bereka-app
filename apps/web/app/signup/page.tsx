@@ -7,13 +7,7 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter }
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select"
+
 import Link from "next/link"
 import { toast } from "sonner"
 import { signupSchema, validate } from "@/lib/validations"
@@ -22,7 +16,7 @@ export default function SignupPage() {
     const [email, setEmail] = useState("")
     const [password, setPassword] = useState("")
     const [username, setUsername] = useState("")
-    const [role, setRole] = useState<"worker" | "client">("worker")
+
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState("")
     const router = useRouter()
@@ -36,7 +30,7 @@ export default function SignupPage() {
         setError("")
 
         // Validate with Zod
-        const result = validate(signupSchema, { username, email, password, role })
+        const result = validate(signupSchema, { username, email, password })
         if (!result.success) {
             setError(result.error)
             return
@@ -70,7 +64,7 @@ export default function SignupPage() {
             .insert({
                 id: userId,
                 username: username || email.split('@')[0],
-                role,
+                role: 'user',
             })
 
         if (profileError) {
@@ -161,18 +155,7 @@ export default function SignupPage() {
                                 Minimum 8 characters, 1 uppercase letter, 1 number
                             </p>
                         </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="role">I want to</Label>
-                            <Select value={role} onValueChange={(val) => setRole(val as "worker" | "client")}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select a role" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="worker">Earn sats (Worker)</SelectItem>
-                                    <SelectItem value="client">Post tasks (Client)</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
+
                     </CardContent>
                     <CardFooter className="flex flex-col gap-4">
                         <Button type="submit" className="w-full" disabled={loading}>

@@ -137,61 +137,84 @@ BEGIN
     END IF;
 
     -- Determine specific action based on what changed
-    IF v_resource_type = 'jobs' AND OLD.status IS DISTINCT FROM NEW.status THEN
-      v_action := 'job.status_changed';
-      v_details := jsonb_build_object(
-        'old_status', OLD.status,
-        'new_status', NEW.status,
-        'changed_fields', v_changed_fields
-      );
-      -- Worker assignment
-      IF NEW.worker_id IS NOT NULL AND OLD.worker_id IS NULL THEN
-        v_actor_id := NEW.creator_id;
+    -- NOTE: Column access MUST be nested inside table-name checks, because
+    -- Postgres evaluates all parts of AND expressions, and tables like
+    -- 'profiles' do not have columns like 'status'.
+    IF v_resource_type = 'jobs' THEN
+      IF OLD.status IS DISTINCT FROM NEW.status THEN
+        v_action := 'job.status_changed';
+        v_details := jsonb_build_object(
+          'old_status', OLD.status,
+          'new_status', NEW.status,
+          'changed_fields', v_changed_fields
+        );
+        -- Worker assignment
+        IF NEW.worker_id IS NOT NULL AND OLD.worker_id IS NULL THEN
+          v_actor_id := NEW.creator_id;
+        ELSE
+          v_actor_id := COALESCE(NEW.worker_id, NEW.creator_id);
+        END IF;
       ELSE
-        v_actor_id := COALESCE(NEW.worker_id, NEW.creator_id);
+        v_action := 'jobs.updated';
+        v_details := jsonb_build_object('changed_fields', v_changed_fields);
+        v_actor_id := NEW.creator_id;
       END IF;
-    ELSIF v_resource_type = 'disputes' AND OLD.status IS DISTINCT FROM NEW.status THEN
-      v_action := 'dispute.status_changed';
-      v_details := jsonb_build_object(
-        'old_status', OLD.status,
-        'new_status', NEW.status,
-        'resolution', NEW.resolution,
-        'changed_fields', v_changed_fields
-      );
+    ELSIF v_resource_type = 'disputes' THEN
+      IF OLD.status IS DISTINCT FROM NEW.status THEN
+        v_action := 'dispute.status_changed';
+        v_details := jsonb_build_object(
+          'old_status', OLD.status,
+          'new_status', NEW.status,
+          'resolution', NEW.resolution,
+          'changed_fields', v_changed_fields
+        );
+      ELSE
+        v_action := 'disputes.updated';
+        v_details := jsonb_build_object('changed_fields', v_changed_fields);
+      END IF;
       v_actor_id := COALESCE(NEW.resolved_by, NEW.opened_by);
-    ELSIF v_resource_type = 'escrow_holds' AND OLD.status IS DISTINCT FROM NEW.status THEN
-      v_action := 'escrow.status_changed';
-      v_details := jsonb_build_object(
-        'old_status', OLD.status,
-        'new_status', NEW.status,
-        'amount_sats', NEW.amount_sats,
-        'job_id', NEW.job_id
-      );
-    ELSIF v_resource_type = 'applications' AND OLD.status IS DISTINCT FROM NEW.status THEN
-      v_action := 'application.status_changed';
-      v_details := jsonb_build_object(
-        'old_status', OLD.status,
-        'new_status', NEW.status,
-        'job_id', NEW.job_id,
-        'worker_id', NEW.worker_id
-      );
-    ELSIF v_resource_type = 'profiles' AND OLD.role IS DISTINCT FROM NEW.role THEN
-      v_action := 'profile.role_changed';
-      v_details := jsonb_build_object(
-        'old_role', OLD.role,
-        'new_role', NEW.role,
-        'changed_fields', v_changed_fields
-      );
+    ELSIF v_resource_type = 'escrow_holds' THEN
+      IF OLD.status IS DISTINCT FROM NEW.status THEN
+        v_action := 'escrow.status_changed';
+        v_details := jsonb_build_object(
+          'old_status', OLD.status,
+          'new_status', NEW.status,
+          'amount_sats', NEW.amount_sats,
+          'job_id', NEW.job_id
+        );
+      ELSE
+        v_action := 'escrow_holds.updated';
+        v_details := jsonb_build_object('changed_fields', v_changed_fields);
+      END IF;
+    ELSIF v_resource_type = 'applications' THEN
+      IF OLD.status IS DISTINCT FROM NEW.status THEN
+        v_action := 'application.status_changed';
+        v_details := jsonb_build_object(
+          'old_status', OLD.status,
+          'new_status', NEW.status,
+          'job_id', NEW.job_id,
+          'worker_id', NEW.worker_id
+        );
+      ELSE
+        v_action := 'applications.updated';
+        v_details := jsonb_build_object('changed_fields', v_changed_fields);
+      END IF;
+    ELSIF v_resource_type = 'profiles' THEN
+      IF OLD.role IS DISTINCT FROM NEW.role THEN
+        v_action := 'profile.role_changed';
+        v_details := jsonb_build_object(
+          'old_role', OLD.role,
+          'new_role', NEW.role,
+          'changed_fields', v_changed_fields
+        );
+      ELSE
+        v_action := 'profiles.updated';
+        v_details := jsonb_build_object('changed_fields', v_changed_fields);
+      END IF;
       v_actor_id := NEW.id;
     ELSE
       v_action := v_resource_type || '.updated';
       v_details := jsonb_build_object('changed_fields', v_changed_fields);
-      -- Best-effort actor detection
-      IF v_resource_type = 'jobs' THEN
-        v_actor_id := NEW.creator_id;
-      ELSIF v_resource_type = 'profiles' THEN
-        v_actor_id := NEW.id;
-      END IF;
     END IF;
 
   ELSIF TG_OP = 'DELETE' THEN

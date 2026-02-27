@@ -1,6 +1,6 @@
 # Bereka
 
-A Lightning micro-task marketplace MVP where workers earn sats instantly for completing small digital tasks. Powered by LNbits for custodial Lightning wallets, Supabase for backend services, and Next.js for the frontend.
+A Lightning micro-task marketplace MVP where users earn sats instantly for completing small digital tasks and can also post their own jobs. Powered by LNbits for custodial Lightning wallets, Supabase for backend services, and Next.js for the frontend.
 
 ## Tech Stack
 

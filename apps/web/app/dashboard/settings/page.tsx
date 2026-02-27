@@ -358,22 +358,12 @@ export default function SettingsPage() {
                     <CardTitle>Account Status</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-6 pt-6">
-                    <div className="grid gap-6 sm:grid-cols-2">
-                        <div className="space-y-2 p-4 rounded-xl bg-background/50 border border-border/40">
-                            <span className="text-sm font-semibold text-muted-foreground block">Account Role</span>
-                            <div className="flex items-center gap-2">
-                                <Badge variant="secondary" className="capitalize px-3 py-1 bg-primary/10 text-primary border-primary/20">
-                                    {profile?.role ?? 'Worker'}
-                                </Badge>
-                            </div>
-                        </div>
-                        <div className="space-y-2 p-4 rounded-xl bg-background/50 border border-border/40">
-                            <span className="text-sm font-semibold text-muted-foreground block">Lightning Wallet</span>
-                            <div className="flex items-center gap-2">
-                                <Badge variant={profile?.lnbits_id ? 'default' : 'outline'} className={profile?.lnbits_id ? "bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20 px-3 py-1" : "px-3 py-1"}>
-                                    {profile?.lnbits_id ? 'Active & Provisioned' : 'Not Provisioned'}
-                                </Badge>
-                            </div>
+                    <div className="space-y-2 p-4 rounded-xl bg-background/50 border border-border/40">
+                        <span className="text-sm font-semibold text-muted-foreground block">Lightning Wallet</span>
+                        <div className="flex items-center gap-2">
+                            <Badge variant={profile?.lnbits_id ? 'default' : 'outline'} className={profile?.lnbits_id ? "bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20 px-3 py-1" : "px-3 py-1"}>
+                                {profile?.lnbits_id ? 'Active & Provisioned' : 'Not Provisioned'}
+                            </Badge>
                         </div>
                     </div>
 

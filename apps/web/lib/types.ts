@@ -4,7 +4,7 @@ export interface Profile {
   id: string
   username: string | null
   bio: string | null
-  role: 'worker' | 'client' | 'admin'
+  role: 'user' | 'admin'
   skills: string[] | null
   avatar_url: string | null
   lnbits_id: string | null

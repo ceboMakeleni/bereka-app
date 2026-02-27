@@ -6,7 +6,7 @@ This document is the authoritative reference for AI agents working on the Bereka
 
 ## 1. Project Overview
 
-Bereka is a Lightning-only custodial micro-task marketplace MVP. Workers earn sats for completing tasks. Creators post jobs, fund escrow, and pay workers on approval. The platform takes a 5% fee.
+Bereka is a Lightning-only custodial micro-task marketplace MVP. Users earn sats for completing tasks and post jobs for others. Creators post jobs, fund escrow, and pay workers on approval. The platform takes a 5% fee. Users have a unified role — any user can both post and work on tasks.
 
 **Hard constraints:**
 - Custodial demo only -- in-app balance, no withdrawals, no on-chain Bitcoin.
@@ -326,7 +326,7 @@ Deno.serve(async (req) => {
     // Audit trail for state-changing operations
     await writeAuditLog(supabase, {
       actorId,
-      actorRole: "client",
+      actorRole: "user",
       action: "resource.action_name",
       resourceType: "resource",
       resourceId: "id",

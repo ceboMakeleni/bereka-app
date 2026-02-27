@@ -31,12 +31,8 @@ function getRoleBadge(role: string) {
     switch (role) {
         case 'admin':
             return <Badge variant="destructive" className="text-xs">Admin</Badge>
-        case 'client':
-            return <Badge className="bg-blue-500/20 text-blue-500 border-blue-500/30 text-xs">Client</Badge>
-        case 'worker':
-            return <Badge className="bg-green-500/20 text-green-500 border-green-500/30 text-xs">Worker</Badge>
         default:
-            return <Badge variant="secondary" className="text-xs">{role}</Badge>
+            return <Badge variant="secondary" className="text-xs">Member</Badge>
     }
 }
 
