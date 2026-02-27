@@ -1,5 +1,7 @@
 import { getCorsHeaders } from "../_shared/cors.ts";
 import { getAuthenticatedUser, createAdminClient } from "../_shared/auth.ts";
+import { createLogger } from "../_shared/logger.ts";
+import { writeAuditLog, logFunctionExecution, getRequestMeta } from "../_shared/audit.ts";
 
 Deno.serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
@@ -8,14 +10,20 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  const startTime = Date.now();
+  let actorId: string | null = null;
+
   try {
     const user = await getAuthenticatedUser(req);
-    const adminId = user.id;
+    actorId = user.id;
+    const log = createLogger("resolve-dispute", actorId);
 
     const { jobId, resolution } = await req.json();
     if (!jobId || !resolution) {
       throw new Error("Missing required fields: jobId, resolution");
     }
+
+    log.info("Dispute resolution initiated", { jobId, resolution });
 
     const supabase = createAdminClient();
 
@@ -23,10 +31,11 @@ Deno.serve(async (req) => {
     const { data: adminProfile, error: adminError } = await supabase
       .from("profiles")
       .select("role")
-      .eq("id", adminId)
+      .eq("id", actorId)
       .single();
 
     if (adminError || !adminProfile || adminProfile.role !== "admin") {
+      log.warn("Unauthorized dispute resolution attempt", { jobId });
       throw new Error("Unauthorized: Admin role required");
     }
 
@@ -46,17 +55,54 @@ Deno.serve(async (req) => {
       {
         p_job_id: jobId,
         p_resolution: resolution,
-        p_admin_id: adminId,
+        p_admin_id: actorId,
       }
     );
 
     if (payoutError) {
+      log.error("Dispute payout RPC failed", { jobId, error: payoutError.message });
       throw new Error(`Dispute payout failed: ${payoutError.message}`);
     }
 
     if (!result?.success) {
       throw new Error("Dispute payout did not succeed");
     }
+
+    log.info("Dispute resolved successfully", {
+      jobId,
+      resolution,
+      amount: result?.amount ?? 0,
+      creatorId: job.creator_id,
+      workerId: job.worker_id,
+    });
+
+    // Write audit trail entry (critical — admin action)
+    await writeAuditLog(supabase, {
+      actorId,
+      actorRole: "admin",
+      action: "dispute.resolved",
+      resourceType: "dispute",
+      resourceId: jobId,
+      details: {
+        resolution,
+        amount_sats: result?.amount ?? 0,
+        creator_id: job.creator_id,
+        worker_id: job.worker_id,
+        job_title: job.title,
+      },
+      ipAddress: req.headers.get("x-forwarded-for"),
+      userAgent: req.headers.get("user-agent"),
+    });
+
+    // Log function execution
+    await logFunctionExecution(supabase, {
+      functionName: "resolve-dispute",
+      actorId,
+      status: "success",
+      durationMs: Date.now() - startTime,
+      requestMeta: getRequestMeta(req),
+      responseMeta: { status: 200, resolution },
+    });
 
     // Send notifications to both parties (non-blocking)
     const notifyParties = [job.creator_id, job.worker_id].filter(Boolean);
@@ -79,6 +125,17 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
+    const supabase = createAdminClient();
+
+    await logFunctionExecution(supabase, {
+      functionName: "resolve-dispute",
+      actorId,
+      status: "error",
+      durationMs: Date.now() - startTime,
+      requestMeta: getRequestMeta(req),
+      errorMessage: (error as Error).message,
+    });
+
     return new Response(JSON.stringify({ error: (error as Error).message }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -1,5 +1,7 @@
 import { getCorsHeaders } from "../_shared/cors.ts";
 import { getAuthenticatedUser, createAdminClient } from "../_shared/auth.ts";
+import { createLogger } from "../_shared/logger.ts";
+import { writeAuditLog, logFunctionExecution, getRequestMeta } from "../_shared/audit.ts";
 
 Deno.serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
@@ -8,12 +10,18 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  const startTime = Date.now();
+  let actorId: string | null = null;
+
   try {
     const user = await getAuthenticatedUser(req);
-    const userId = user.id;
+    actorId = user.id;
+    const log = createLogger("approve-payout", actorId);
 
     const { jobId } = await req.json();
     if (!jobId) throw new Error("Missing jobId");
+
+    log.info("Payout initiated", { jobId });
 
     const supabase = createAdminClient();
 
@@ -24,7 +32,7 @@ Deno.serve(async (req) => {
       .single();
 
     if (!job) throw new Error("Job not found");
-    if (job.creator_id !== userId) throw new Error("Unauthorized");
+    if (job.creator_id !== actorId) throw new Error("Unauthorized");
     if (job.status !== "IN_PROGRESS" && job.status !== "REVIEW") {
       throw new Error("Job not ready for payout");
     }
@@ -42,9 +50,44 @@ Deno.serve(async (req) => {
     );
 
     if (payoutError) {
-      console.error("Payout error:", payoutError);
+      log.error("Payout RPC failed", { jobId, error: payoutError.message });
       throw new Error(`Payout failed: ${payoutError.message}`);
     }
+
+    log.info("Payout completed", {
+      jobId,
+      workerId: job.worker_id,
+      payout: result?.payout ?? 0,
+      fee: result?.fee ?? 0,
+      alreadyCompleted: result?.already_completed ?? false,
+    });
+
+    // Write audit trail entry
+    await writeAuditLog(supabase, {
+      actorId,
+      actorRole: "client",
+      action: "payout.approved",
+      resourceType: "job",
+      resourceId: jobId,
+      details: {
+        worker_id: job.worker_id,
+        budget_sats: Number(job.budget_sats),
+        payout: result?.payout ?? 0,
+        fee: result?.fee ?? 0,
+      },
+      ipAddress: req.headers.get("x-forwarded-for"),
+      userAgent: req.headers.get("user-agent"),
+    });
+
+    // Log function execution
+    await logFunctionExecution(supabase, {
+      functionName: "approve-payout",
+      actorId,
+      status: "success",
+      durationMs: Date.now() - startTime,
+      requestMeta: getRequestMeta(req),
+      responseMeta: { status: 200, jobId },
+    });
 
     // Send notification to worker (non-blocking)
     try {
@@ -64,6 +107,18 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
+    const supabase = createAdminClient();
+
+    // Log failed execution
+    await logFunctionExecution(supabase, {
+      functionName: "approve-payout",
+      actorId,
+      status: "error",
+      durationMs: Date.now() - startTime,
+      requestMeta: getRequestMeta(req),
+      errorMessage: (error as Error).message,
+    });
+
     return new Response(JSON.stringify({ error: (error as Error).message }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

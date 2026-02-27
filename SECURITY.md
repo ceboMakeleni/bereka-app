@@ -65,6 +65,37 @@ The following headers are set on all responses via `vercel.json`:
 - `Referrer-Policy: strict-origin-when-cross-origin`
 - `Permissions-Policy` — restricts browser API access
 
+## Audit Trail & Logging
+
+All business-critical actions are recorded for forensic and compliance purposes.
+
+### Audit Tables
+
+| Table | Purpose | Retention |
+|-------|---------|-----------|
+| `audit_log` | WHO did WHAT, WHEN, to WHICH resource | Unlimited |
+| `edge_function_logs` | Function execution metrics (timing, errors) | 90 days |
+| `ledger_entries` | Double-entry financial movements (now with `actor_id`) | Unlimited |
+
+### Automatic Change Data Capture
+
+Database triggers automatically log INSERT/UPDATE events on `jobs`, `applications`, `disputes`, `escrow_holds`, `profiles`, and `submissions` to the `audit_log` table. This ensures all data modifications are captured regardless of the entry point.
+
+### Admin Action Logging
+
+All admin actions (dispute resolution, role changes) are explicitly audited with the `admin` actor role, IP address, and user agent. Admin audit entries can be queried with:
+```sql
+SELECT * FROM audit_log WHERE actor_role = 'admin' ORDER BY created_at DESC;
+```
+
+### Log Integrity
+
+- Audit tables use RLS: users can only see their own entries; admins can see all.
+- Only `SECURITY DEFINER` triggers and service-role clients can insert audit entries.
+- Structured JSON logging in edge functions ensures tamper-evident log streams.
+
+See `LOGGING.md` for operational queries and maintenance procedures.
+
 ## Reporting Vulnerabilities
 
 If you discover a security vulnerability, please report it privately rather than opening a public issue.

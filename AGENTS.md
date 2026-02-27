@@ -60,6 +60,8 @@ bereka-app/
 │       │   ├── auth.ts            # getAuthenticatedUser, verifyWebhookSecret
 │       │   ├── cors.ts            # CORS headers
 │       │   ├── supabase.ts        # createAdminClient, createUserClient
+│       │   ├── logger.ts          # Structured JSON logging utility
+│       │   ├── audit.ts           # Audit trail & function execution logging
 │       │   └── processIncomingPayment.ts  # Centralized payment processing
 │       ├── create-wallet/index.ts
 │       ├── create-invoice/index.ts
@@ -291,27 +293,73 @@ When adding new tables or columns, update both the migration AND regenerate `dat
 
 ### 6.1 Function Skeleton
 
-Every edge function must follow this exact pattern:
+Every edge function must follow this exact pattern (with structured logging and audit trail):
 
 ```typescript
-import { corsHeaders } from "../_shared/cors.ts";
+import { getCorsHeaders } from "../_shared/cors.ts";
 import { getAuthenticatedUser, createAdminClient } from "../_shared/auth.ts";
+import { createLogger } from "../_shared/logger.ts";
+import { writeAuditLog, logFunctionExecution, getRequestMeta } from "../_shared/audit.ts";
 
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  const startTime = Date.now();
+  let actorId: string | null = null;
+
   try {
     const user = await getAuthenticatedUser(req);
+    actorId = user.id;
+    const log = createLogger("function-name", actorId);
     const supabase = createAdminClient();
 
+    log.info("Action started", { /* relevant context */ });
+
     // ... business logic
+
+    log.info("Action completed", { /* result context */ });
+
+    // Audit trail for state-changing operations
+    await writeAuditLog(supabase, {
+      actorId,
+      actorRole: "client",
+      action: "resource.action_name",
+      resourceType: "resource",
+      resourceId: "id",
+      details: { /* action-specific metadata */ },
+      ipAddress: req.headers.get("x-forwarded-for"),
+      userAgent: req.headers.get("user-agent"),
+    });
+
+    // Function execution log
+    await logFunctionExecution(supabase, {
+      functionName: "function-name",
+      actorId,
+      status: "success",
+      durationMs: Date.now() - startTime,
+      requestMeta: getRequestMeta(req),
+      responseMeta: { status: 200 },
+    });
 
     return new Response(JSON.stringify({ success: true }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
+    const supabase = createAdminClient();
+
+    await logFunctionExecution(supabase, {
+      functionName: "function-name",
+      actorId,
+      status: "error",
+      durationMs: Date.now() - startTime,
+      requestMeta: getRequestMeta(req),
+      errorMessage: (error as Error).message,
+    });
+
     return new Response(JSON.stringify({ error: (error as Error).message }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -334,9 +382,11 @@ Deno.serve(async (req) => {
 
 | Module | Exports | Purpose |
 |--------|---------|---------|
-| `_shared/cors.ts` | `corsHeaders` | CORS headers for all responses |
+| `_shared/cors.ts` | `getCorsHeaders(req)` | CORS headers for all responses |
 | `_shared/supabase.ts` | `createAdminClient()`, `createUserClient(token)` | Supabase client factories |
 | `_shared/auth.ts` | `getAuthenticatedUser(req)`, `verifyWebhookSecret(req)` | JWT auth, webhook auth; re-exports supabase factories |
+| `_shared/logger.ts` | `createLogger(name, actorId)` | Structured JSON logging for edge functions |
+| `_shared/audit.ts` | `writeAuditLog()`, `logFunctionExecution()`, `getRequestMeta()` | Audit trail & execution logging to database |
 | `_shared/processIncomingPayment.ts` | `processIncomingPayment(supabase, hash, provider, payload?)` | Idempotent payment crediting |
 
 **Critical:** `processIncomingPayment` is the ONLY place that credits user balances from Lightning payments. Both `check-payment` and `lnbits-webhook` call this function. Never duplicate this logic.
@@ -517,3 +567,74 @@ The `send-notification` function sends emails via an external SMTP API using `fe
 8. **Never store LNbits keys in frontend-accessible storage.** They live in the `profiles` table, hidden by the `profiles_public` view.
 9. **Always include CORS headers** in edge function responses, including error responses.
 10. **Always handle the OPTIONS preflight** as the first check in every edge function.
+11. **Never use raw `console.log`/`console.error` in edge functions.** Use `createLogger()` from `_shared/logger.ts` for structured logging.
+12. **Always write an audit trail entry for state-changing operations.** Use `writeAuditLog()` from `_shared/audit.ts`.
+13. **Always log function execution** with timing for every edge function call. Use `logFunctionExecution()` from `_shared/audit.ts`.
+14. **Never modify CDC audit triggers** without explicit instruction. These auto-capture data changes on critical tables.
+
+---
+
+## 12. Logging & Auditing
+
+### 12.1 Structured Logging
+
+All edge functions use structured JSON logging via `createLogger()` from `_shared/logger.ts`.
+
+```typescript
+import { createLogger } from "../_shared/logger.ts";
+
+const log = createLogger("function-name", userId);
+log.info("Action started", { jobId, amount });
+log.warn("Retried — idempotent return", { jobId });
+log.error("Operation failed", { error: err.message });
+```
+
+Log output format (JSON, compatible with Cloud Logging):
+```json
+{
+  "severity": "INFO",
+  "timestamp": "2026-02-27T13:00:00.000Z",
+  "function_name": "approve-payout",
+  "request_id": "uuid-v4",
+  "actor_id": "user-uuid",
+  "message": "Payout completed",
+  "data": { "jobId": "...", "amount": 5000 }
+}
+```
+
+### 12.2 Audit Trail
+
+Business-critical actions are recorded in the `audit_log` table via `writeAuditLog()`.
+
+**Actions that MUST be audited:**
+
+| Action | Edge Function | Resource Type |
+|--------|-------------|---------------|
+| `payout.approved` | approve-payout | job |
+| `escrow.funded` | fund-escrow | job |
+| `dispute.resolved` | resolve-dispute | dispute |
+| `wallet.created` | create-wallet | profile |
+| `payment.invoice_created` | create-invoice | payment |
+| `payment.completed` | check-payment | payment |
+| `payment.webhook_processed` | lnbits-webhook | payment |
+
+### 12.3 Automatic Change Data Capture (CDC)
+
+Database triggers automatically log changes to these tables into `audit_log`:
+
+| Table | Events | Key Details |
+|-------|--------|-------------|
+| `jobs` | INSERT, UPDATE | Status changes, worker assignment |
+| `applications` | INSERT, UPDATE | Accept/reject |
+| `disputes` | INSERT, UPDATE | Resolution |
+| `escrow_holds` | INSERT, UPDATE | Status changes |
+| `profiles` | UPDATE | Role changes |
+| `submissions` | INSERT | Work submissions |
+
+### 12.4 Function Execution Logs
+
+Every edge function records its execution in `edge_function_logs` with timing data and status.
+
+### 12.5 Operational Guide
+
+See `LOGGING.md` for query examples, investigation procedures, and maintenance tasks.

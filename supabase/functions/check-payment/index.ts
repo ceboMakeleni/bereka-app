@@ -1,6 +1,8 @@
 import { getCorsHeaders } from "../_shared/cors.ts";
 import { getAuthenticatedUser, createAdminClient } from "../_shared/auth.ts";
 import { processIncomingPayment } from "../_shared/processIncomingPayment.ts";
+import { createLogger } from "../_shared/logger.ts";
+import { writeAuditLog, logFunctionExecution, getRequestMeta } from "../_shared/audit.ts";
 
 Deno.serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
@@ -9,21 +11,28 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  const startTime = Date.now();
+  let actorId: string | null = null;
+
   try {
     // Authenticate the user making the polling request
     const user = await getAuthenticatedUser(req);
+    actorId = user.id;
+    const log = createLogger("check-payment", actorId);
 
     const { paymentHash } = await req.json();
     if (!paymentHash) throw new Error("Missing paymentHash");
 
-    // FIX 10: Validate paymentHash format (hex string, 64 chars for SHA256)
+    // Validate paymentHash format (hex string, 64 chars for SHA256)
     if (typeof paymentHash !== "string" || !/^[a-f0-9]{64}$/i.test(paymentHash)) {
       throw new Error("Invalid paymentHash format");
     }
 
+    log.info("Payment check initiated", { paymentHash });
+
     const supabase = createAdminClient();
 
-    // FIX 4: Verify payment intent exists AND belongs to the authenticated user
+    // Verify payment intent exists AND belongs to the authenticated user
     const { data: intent } = await supabase
       .from("payment_intents")
       .select("status, user_id, amount_sats")
@@ -39,6 +48,17 @@ Deno.serve(async (req) => {
 
     // Check if already completed (fast path, no LNbits call needed)
     if (intent.status === "COMPLETED") {
+      log.info("Payment already completed (fast path)", { paymentHash });
+
+      await logFunctionExecution(supabase, {
+        functionName: "check-payment",
+        actorId,
+        status: "success",
+        durationMs: Date.now() - startTime,
+        requestMeta: getRequestMeta(req),
+        responseMeta: { status: 200, paid: true, fastPath: true },
+      });
+
       return new Response(JSON.stringify({ paid: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -82,16 +102,64 @@ Deno.serve(async (req) => {
           data
         );
 
+        log.info("Payment confirmed via polling", {
+          paymentHash,
+          amount: result.amount,
+          alreadyProcessed: result.alreadyProcessed,
+        });
+
+        // Write audit trail entry for completed payment
+        if (!result.alreadyProcessed) {
+          await writeAuditLog(supabase, {
+            actorId,
+            actorRole: "worker",
+            action: "payment.completed",
+            resourceType: "payment",
+            resourceId: paymentHash,
+            details: { amount_sats: result.amount, source: "poll" },
+            ipAddress: req.headers.get("x-forwarded-for"),
+          });
+        }
+
+        await logFunctionExecution(supabase, {
+          functionName: "check-payment",
+          actorId,
+          status: "success",
+          durationMs: Date.now() - startTime,
+          requestMeta: getRequestMeta(req),
+          responseMeta: { status: 200, paid: true },
+        });
+
         return new Response(JSON.stringify({ paid: true, amount: result.amount }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
     }
 
+    await logFunctionExecution(supabase, {
+      functionName: "check-payment",
+      actorId,
+      status: "success",
+      durationMs: Date.now() - startTime,
+      requestMeta: getRequestMeta(req),
+      responseMeta: { status: 200, paid: false },
+    });
+
     return new Response(JSON.stringify({ paid: false }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
+    const supabase = createAdminClient();
+
+    await logFunctionExecution(supabase, {
+      functionName: "check-payment",
+      actorId,
+      status: "error",
+      durationMs: Date.now() - startTime,
+      requestMeta: getRequestMeta(req),
+      errorMessage: (error as Error).message,
+    });
+
     return new Response(JSON.stringify({ error: (error as Error).message }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -1,5 +1,7 @@
 import { getCorsHeaders } from "../_shared/cors.ts";
 import { createAdminClient } from "../_shared/auth.ts";
+import { createLogger } from "../_shared/logger.ts";
+import { logFunctionExecution, getRequestMeta } from "../_shared/audit.ts";
 
 interface NotificationPayload {
   type: string;
@@ -16,12 +18,16 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  const startTime = Date.now();
+  const log = createLogger("send-notification", null);
+
   try {
-    // FIX 6: Verify this is an internal/service call
+    // Verify this is an internal/service call
     const authHeader = req.headers.get("Authorization");
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
     if (!authHeader || !serviceKey) {
+      log.warn("Unauthorized notification attempt — missing credentials");
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -30,6 +36,7 @@ Deno.serve(async (req) => {
 
     const token = authHeader.replace("Bearer ", "");
     if (token !== serviceKey) {
+      log.warn("Unauthorized notification attempt — invalid token");
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -43,6 +50,8 @@ Deno.serve(async (req) => {
       throw new Error("Missing required fields: type, recipientUserId");
     }
 
+    log.info("Sending notification", { type, recipientUserId, jobId });
+
     const supabase = createAdminClient();
 
     // Get recipient email
@@ -52,9 +61,7 @@ Deno.serve(async (req) => {
     } = await supabase.auth.admin.getUserById(recipientUserId);
 
     if (userError || !user?.email) {
-      console.log(
-        `Could not find email for user ${recipientUserId}, skipping notification`
-      );
+      log.info("Recipient email not found — skipping notification", { recipientUserId });
       return new Response(
         JSON.stringify({ success: true, skipped: true }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -135,15 +142,17 @@ Deno.serve(async (req) => {
 
       if (!resendResponse.ok) {
         const errorText = await resendResponse.text();
-        console.error(
-          `Failed to send email to ${email}: ${resendResponse.statusText} - ${errorText}`
-        );
+        log.error("Email send failed", {
+          recipient: email,
+          status: resendResponse.status,
+          error: errorText,
+        });
+      } else {
+        log.info("Email sent successfully", { type, recipient: email });
       }
     } else {
       // Dev mode: log to console
-      console.log(
-        `[NOTIFICATION] To: ${email} | Subject: ${subject} | Body: ${body}`
-      );
+      log.info("Dev mode notification (no RESEND_API_KEY)", { to: email, subject });
     }
 
     // Persist in-app notification to the database
@@ -160,19 +169,39 @@ Deno.serve(async (req) => {
         });
 
       if (insertError) {
-        console.error("Failed to insert notification:", insertError);
+        log.warn("Notification DB insert failed", { error: insertError.message });
       }
     } catch (dbError) {
       // Non-blocking — email was already sent
-      console.error("Notification DB insert failed:", dbError);
+      log.warn("Notification DB insert exception", { error: (dbError as Error).message });
     }
+
+    await logFunctionExecution(supabase, {
+      functionName: "send-notification",
+      actorId: null,
+      status: "success",
+      durationMs: Date.now() - startTime,
+      requestMeta: getRequestMeta(req),
+      responseMeta: { status: 200, type, recipient: email },
+    });
 
     return new Response(
       JSON.stringify({ success: true, type, recipient: email }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
-    console.error("Notification error:", error);
+    log.error("Notification error", { error: (error as Error).message });
+
+    const supabase = createAdminClient();
+    await logFunctionExecution(supabase, {
+      functionName: "send-notification",
+      actorId: null,
+      status: "error",
+      durationMs: Date.now() - startTime,
+      requestMeta: getRequestMeta(req),
+      errorMessage: (error as Error).message,
+    });
+
     return new Response(JSON.stringify({ error: (error as Error).message }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
