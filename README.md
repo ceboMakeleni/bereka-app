@@ -19,8 +19,9 @@ A Lightning micro-task marketplace MVP where users earn sats instantly for compl
 - **Payment Verification**: Polling-first invoice payment detection with webhook fallback for real-time confirmation
 - **Platform Fee**: 5% fee on approved payouts, processed atomically with worker payment
 - **Admin Dispute Resolution**: Refund, pay worker, or 50-50 split with full dispute console and ledger view
+- **Post-Job Ratings**: Creators and workers rate each other (1–5 stars + optional comment) after job completion, with confirmation dialog, audit trail, and notification
 - **File Uploads**: Submission attachments and avatar uploads via Supabase Storage
-- **Email Notifications**: External SMTP API integration (Deno-compatible, no nodemailer), 7 event types
+- **Email Notifications**: External SMTP API integration (Deno-compatible, no nodemailer), 8 event types
 - **Accessibility (a11y)**: WCAG 2.2 Level AA compliant — skip navigation, ARIA landmarks, focus management, live regions, `prefers-reduced-motion`, and screen reader support
 
 ## Project Structure
@@ -55,6 +56,7 @@ bereka-app/
 │   │   ├── fund-escrow/
 │   │   ├── approve-payout/
 │   │   ├── resolve-dispute/
+│   │   ├── submit-rating/
 │   │   └── send-notification/
 │   └── config.toml
 └── .github/workflows/     # CI/CD

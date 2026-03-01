@@ -114,6 +114,16 @@ export interface JobCategory {
   created_at: string
 }
 
+export interface Rating {
+  id: string
+  job_id: string
+  rater_id: string
+  ratee_id: string
+  score: number  // 1–5
+  comment: string | null
+  created_at: string
+}
+
 // Edge Function Request/Response Types
 
 export interface CreateWalletRequest {
@@ -194,11 +204,21 @@ export interface Notification {
 }
 
 export interface SendNotificationRequest {
-  type: 'APPLICATION_RECEIVED' | 'JOB_ACCEPTED' | 'SUBMISSION_READY' | 'PAYOUT_APPROVED' | 'DISPUTE_OPENED' | 'DISPUTE_RESOLVED' | 'PAYMENT_RECEIVED'
+  type: 'APPLICATION_RECEIVED' | 'JOB_ACCEPTED' | 'SUBMISSION_READY' | 'PAYOUT_APPROVED' | 'DISPUTE_OPENED' | 'DISPUTE_RESOLVED' | 'PAYMENT_RECEIVED' | 'RATING_SUBMITTED'
   recipientUserId: string
   jobId?: string
   amount?: number
   paymentHash?: string
+}
+
+export interface SubmitRatingRequest {
+  jobId: string
+  score: number  // 1–5
+  comment?: string
+}
+
+export interface SubmitRatingResponse {
+  success: boolean
 }
 
 // Utility Types

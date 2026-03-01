@@ -112,6 +112,10 @@ Deno.serve(async (req) => {
         subject = `Payment received: ${amount ? `${amount.toLocaleString()} sats` : "funds"} added`;
         body = `Your Lightning payment of ${amount ? `${amount.toLocaleString()} sats` : "funds"} has been received and credited to your available balance.`;
         break;
+      case "RATING_SUBMITTED":
+        subject = `You received a new rating: ${jobTitle}`;
+        body = `Someone has left you a rating for the job "${jobTitle}". Visit your dashboard to see it.`;
+        break;
       default:
         subject = "Bereka notification";
         body = "You have a new notification on Bereka. Check your dashboard for details.";

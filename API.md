@@ -276,6 +276,50 @@ Internal function invoked by other Edge Functions. Sends email notifications via
 
 ---
 
+### POST /submit-rating
+
+Submits a 1–5 star rating from one job party to the other after a job is completed.
+
+**Auth:** JWT (required — must be either the job creator or the assigned worker)
+
+**Request Body:**
+```json
+{
+  "jobId": "uuid",
+  "score": 4,
+  "comment": "Great work, delivered on time!"
+}
+```
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `jobId` | UUID | ✅ | The completed job |
+| `score` | integer | ✅ | 1–5 (inclusive) |
+| `comment` | string | ❌ | Optional free-text, max 500 chars |
+
+**Response:**
+```json
+{ "success": true }
+```
+
+**Business Rules:**
+- `job.status` must be `COMPLETED`
+- Creators rate workers; workers rate creators
+- Each user may submit at most **one** rating per job (enforced by DB unique constraint)
+
+**Side Effects:**
+- Inserts a row into the `ratings` table
+- Writes a `rating.submitted` audit log entry
+- Sends `RATING_SUBMITTED` notification to the ratee (non-blocking)
+
+**Errors:**
+- `400` Job not found
+- `400` Job is not in `COMPLETED` state
+- `400` Caller was not a party to this job
+- `400` Rating already submitted for this job
+
+---
+
 ## Database RPCs
 
 These functions are called by Edge Functions via `supabase.rpc()`:

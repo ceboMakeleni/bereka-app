@@ -71,6 +71,7 @@ bereka-app/
 │       ├── approve-payout/index.ts
 │       ├── cancel-job/index.ts
 │       ├── resolve-dispute/index.ts
+│       ├── submit-rating/index.ts
 │       └── send-notification/index.ts
 ├── .github/workflows/
 │   └── deploy.yml                 # CI/CD: migrations + edge functions
@@ -403,6 +404,7 @@ Deno.serve(async (req) => {
 | `approve-payout` | `getAuthenticatedUser` | Yes |
 | `cancel-job` | `getAuthenticatedUser` | Yes |
 | `resolve-dispute` | `getAuthenticatedUser` + admin role check | Yes |
+| `submit-rating` | `getAuthenticatedUser` | Yes |
 | `send-notification` | Internal only (service role) | No (internal) |
 | `lnbits-webhook` | `verifyWebhookSecret` | No (`--no-verify-jwt`) |
 
@@ -433,6 +435,7 @@ These must be set manually via `supabase secrets set`:
 | `payment_events` | `id` (UUID) | provider, payment_hash (unique), amount_sats, status, raw_payload |
 | `disputes` | `id` (UUID) | job_id, opened_by, reason, evidence_urls[], status, resolution, resolved_by |
 | `escrow_holds` | `id` (UUID) | job_id (unique), amount_sats, status |
+| `ratings` | `id` (UUID) | job_id, rater_id, ratee_id, score (1–5), comment; unique(job_id, rater_id) |
 
 **View:** `profiles_public` -- exposes profiles without sensitive LNbits keys; includes `has_wallet` boolean.
 

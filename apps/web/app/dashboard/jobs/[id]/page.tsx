@@ -21,6 +21,7 @@ import {
 import { ShareButton } from "@/components/ShareButton"
 import { SocialShareButtons } from "@/components/SocialShareButtons"
 import { generateJobUrl, generateShareText } from "@/lib/share-utils"
+import { StarRating } from "@/components/ui/star-rating"
 import { toast } from "sonner"
 import { AlertTriangle } from "lucide-react"
 
@@ -55,6 +56,16 @@ interface Submission {
     worker_id: string
 }
 
+interface Rating {
+    id: string
+    job_id: string
+    rater_id: string
+    ratee_id: string
+    score: number
+    comment: string | null
+    created_at: string
+}
+
 export default function JobDetailsPage() {
     const { id } = useParams()
     const router = useRouter()
@@ -71,6 +82,13 @@ export default function JobDetailsPage() {
     const [uploadingFiles, setUploadingFiles] = useState(false)
     const [selectedFiles, setSelectedFiles] = useState<File[]>([])
     const [showCancelDialog, setShowCancelDialog] = useState(false)
+    // Rating state
+    const [myRating, setMyRating] = useState<Rating | null>(null)
+    const [theirRating, setTheirRating] = useState<Rating | null>(null)
+    const [ratingScore, setRatingScore] = useState(0)
+    const [ratingComment, setRatingComment] = useState("")
+    const [showRatingDialog, setShowRatingDialog] = useState(false)
+    const [ratingLoading, setRatingLoading] = useState(false)
 
     const fetchJob = useCallback(async () => {
         const supabase = createClient()
@@ -114,6 +132,21 @@ export default function JobDetailsPage() {
             .order('created_at', { ascending: false })
 
         if (subs) setSubmissions(subs)
+
+        // Fetch ratings if job is completed
+        if (jobData.status === 'COMPLETED' && user) {
+            const { data: ratingRows } = await supabase
+                .from('ratings')
+                .select('*')
+                .eq('job_id', id)
+
+            if (ratingRows) {
+                const mine = ratingRows.find((r: Rating) => r.rater_id === user.id) ?? null
+                const theirs = ratingRows.find((r: Rating) => r.rater_id !== user.id) ?? null
+                setMyRating(mine)
+                setTheirRating(theirs)
+            }
+        }
 
         setLoading(false)
     }, [id])
@@ -348,11 +381,40 @@ export default function JobDetailsPage() {
 
             setJob({ ...job, status: 'COMPLETED' })
             toast.success("Payment approved and sent to worker!")
+            // Refresh to load rating section
+            await fetchJob()
         } catch (e: any) {
             console.error(e)
             toast.error(e.message || "Approval failed")
         } finally {
             setActionLoading(false)
+        }
+    }
+
+    const handleSubmitRating = async () => {
+        if (!user || !job || ratingScore === 0) return
+        setShowRatingDialog(false)
+        setRatingLoading(true)
+        const supabase = createClient()
+
+        try {
+            const { error } = await supabase.functions.invoke('submit-rating', {
+                body: {
+                    jobId: job.id,
+                    score: ratingScore,
+                    comment: ratingComment.trim() || undefined,
+                },
+            })
+            if (error) throw error
+
+            toast.success("Rating submitted — thank you for your feedback!")
+            // Refresh to show submitted state
+            await fetchJob()
+        } catch (e: any) {
+            console.error(e)
+            toast.error(e.message || "Failed to submit rating")
+        } finally {
+            setRatingLoading(false)
         }
     }
 
@@ -428,6 +490,7 @@ export default function JobDetailsPage() {
         <>
             {/* Cancel Job confirmation dialog */}
             <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
@@ -458,6 +521,34 @@ export default function JobDetailsPage() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            {/* Submit Rating confirmation dialog */}
+            <Dialog open={showRatingDialog} onOpenChange={setShowRatingDialog}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Submit your rating?</DialogTitle>
+                        <DialogDescription>
+                            You are about to submit a {ratingScore}-star rating. Ratings are final and cannot be changed after submission.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button
+                            variant="outline"
+                            onClick={() => setShowRatingDialog(false)}
+                            disabled={ratingLoading}
+                        >
+                            Go Back
+                        </Button>
+                        <Button
+                            onClick={handleSubmitRating}
+                            disabled={ratingLoading}
+                        >
+                            {ratingLoading ? 'Submitting...' : 'Confirm Rating'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
             <div className="max-w-3xl mx-auto py-8 space-y-6">
                 <Card>
                     <CardHeader>
@@ -539,8 +630,81 @@ export default function JobDetailsPage() {
                         )}
 
                         {job.status === 'COMPLETED' && (
-                            <div className="text-center text-green-600 font-bold text-lg py-4">
-                                ✅ Job Completed — Payment has been released
+                            <div className="space-y-4">
+                                <div className="text-center text-green-600 font-bold text-lg py-2">
+                                    ✅ Job Completed — Payment has been released
+                                </div>
+
+                                {/* Ratings section — only visible to job parties */}
+                                {(isCreator || isWorker) && (
+                                    <div
+                                        className="border rounded-lg p-4 space-y-4 bg-muted/30"
+                                        aria-label="Job ratings"
+                                    >
+                                        <h3 className="font-semibold text-base">Ratings</h3>
+
+                                        {/* Current user's rating */}
+                                        {myRating ? (
+                                            <div className="space-y-1">
+                                                <p className="text-sm font-medium text-muted-foreground">
+                                                    Your rating
+                                                </p>
+                                                <StarRating value={myRating.score} readonly size="md" />
+                                                {myRating.comment && (
+                                                    <p className="text-sm text-muted-foreground italic">"{myRating.comment}"</p>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-3">
+                                                <p className="text-sm font-medium">
+                                                    {isCreator ? 'Rate the worker' : 'Rate the job creator'}
+                                                </p>
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="rating-stars">Score</Label>
+                                                    <div id="rating-stars">
+                                                        <StarRating
+                                                            value={ratingScore}
+                                                            onChange={setRatingScore}
+                                                            size="lg"
+                                                        />
+                                                    </div>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="rating-comment">Comment (optional)</Label>
+                                                    <Textarea
+                                                        id="rating-comment"
+                                                        placeholder="Share your experience..."
+                                                        value={ratingComment}
+                                                        onChange={e => setRatingComment(e.target.value)}
+                                                        rows={3}
+                                                        maxLength={500}
+                                                    />
+                                                </div>
+                                                <Button
+                                                    onClick={() => setShowRatingDialog(true)}
+                                                    disabled={ratingScore === 0 || ratingLoading}
+                                                    className="w-full"
+                                                    aria-label="Submit rating"
+                                                >
+                                                    {ratingLoading ? 'Submitting...' : 'Submit Rating'}
+                                                </Button>
+                                            </div>
+                                        )}
+
+                                        {/* Other party's rating */}
+                                        {theirRating && (
+                                            <div className="border-t pt-3 space-y-1">
+                                                <p className="text-sm font-medium text-muted-foreground">
+                                                    {isCreator ? 'Worker\'s rating of you' : 'Creator\'s rating of you'}
+                                                </p>
+                                                <StarRating value={theirRating.score} readonly size="md" />
+                                                {theirRating.comment && (
+                                                    <p className="text-sm text-muted-foreground italic">"{theirRating.comment}"</p>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         )}
                         {job.status === 'DISPUTED' && (
