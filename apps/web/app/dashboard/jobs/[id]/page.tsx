@@ -10,10 +10,19 @@ import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog"
 import { ShareButton } from "@/components/ShareButton"
 import { SocialShareButtons } from "@/components/SocialShareButtons"
 import { generateJobUrl, generateShareText } from "@/lib/share-utils"
 import { toast } from "sonner"
+import { AlertTriangle } from "lucide-react"
 
 interface Job {
     id: string
@@ -61,6 +70,7 @@ export default function JobDetailsPage() {
     const [disputeReason, setDisputeReason] = useState("")
     const [uploadingFiles, setUploadingFiles] = useState(false)
     const [selectedFiles, setSelectedFiles] = useState<File[]>([])
+    const [showCancelDialog, setShowCancelDialog] = useState(false)
 
     const fetchJob = useCallback(async () => {
         const supabase = createClient()
@@ -277,6 +287,31 @@ export default function JobDetailsPage() {
         }
     }
 
+    const handleCancel = async () => {
+        if (!user || !job) return
+        setShowCancelDialog(false)
+        setActionLoading(true)
+        const supabase = createClient()
+
+        try {
+            const { data, error } = await supabase.functions.invoke('cancel-job', {
+                body: { jobId: job.id }
+            })
+            if (error) throw error
+
+            setJob({ ...job, status: 'CANCELLED' })
+            const refundMessage = job.status === 'FUNDED'
+                ? ` Your ${Number(job.budget_sats).toLocaleString()} sats have been returned to your wallet.`
+                : ''
+            toast.success(`Job cancelled.${refundMessage}`)
+        } catch (e: any) {
+            console.error(e)
+            toast.error(e.message || "Failed to cancel job")
+        } finally {
+            setActionLoading(false)
+        }
+    }
+
     const downloadFile = async (filePath: string) => {
         const supabase = createClient()
         const { data, error } = await supabase.storage
@@ -387,229 +422,286 @@ export default function JobDetailsPage() {
         CANCELLED: 'bg-gray-100 text-gray-500',
     }
 
+    const isCancellableByCreator = isCreator && (job.status === 'OPEN' || job.status === 'FUNDED')
+
     return (
-        <div className="max-w-3xl mx-auto py-8 space-y-6">
-            <Card>
-                <CardHeader>
-                    <div className="flex justify-between items-start">
-                        <div>
-                            <CardTitle className="text-2xl">{job.title}</CardTitle>
-                            <CardDescription>
-                                Posted by {job.profiles?.username || 'Unknown'}
-                                {job.category && <> · <span className="font-medium">{job.category}</span></>}
-                            </CardDescription>
+        <>
+            {/* Cancel Job confirmation dialog */}
+            <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <AlertTriangle className="h-5 w-5 text-destructive" aria-hidden="true" />
+                            Cancel this job?
+                        </DialogTitle>
+                        <DialogDescription>
+                            {job.status === 'FUNDED'
+                                ? `This job is funded. Cancelling will immediately refund ${Number(job.budget_sats).toLocaleString()} sats back to your wallet balance. This action cannot be undone.`
+                                : 'Are you sure you want to cancel this job? This action cannot be undone.'}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button
+                            variant="outline"
+                            onClick={() => setShowCancelDialog(false)}
+                            disabled={actionLoading}
+                        >
+                            Keep Job
+                        </Button>
+                        <Button
+                            variant="destructive"
+                            onClick={handleCancel}
+                            disabled={actionLoading}
+                        >
+                            {actionLoading ? 'Cancelling...' : 'Yes, Cancel Job'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+            <div className="max-w-3xl mx-auto py-8 space-y-6">
+                <Card>
+                    <CardHeader>
+                        <div className="flex justify-between items-start">
+                            <div>
+                                <CardTitle className="text-2xl">{job.title}</CardTitle>
+                                <CardDescription>
+                                    Posted by {job.profiles?.username || 'Unknown'}
+                                    {job.category && <> · <span className="font-medium">{job.category}</span></>}
+                                </CardDescription>
+                            </div>
+                            <Badge className={statusColors[job.status] || ''}>{job.status}</Badge>
                         </div>
-                        <Badge className={statusColors[job.status] || ''}>{job.status}</Badge>
-                    </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <div className="flex gap-4">
-                        <div className="rounded-md bg-muted p-4 flex-1">
-                            <div className="text-sm font-semibold mb-1">Budget</div>
-                            <div className="text-lg">{Number(job.budget_sats).toLocaleString()} sats</div>
-                        </div>
-                        {job.deadline && (
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="flex gap-4">
                             <div className="rounded-md bg-muted p-4 flex-1">
-                                <div className="text-sm font-semibold mb-1">Deadline</div>
-                                <div className="text-lg">{new Date(job.deadline).toLocaleDateString()}</div>
+                                <div className="text-sm font-semibold mb-1">Budget</div>
+                                <div className="text-lg">{Number(job.budget_sats).toLocaleString()} sats</div>
+                            </div>
+                            {job.deadline && (
+                                <div className="rounded-md bg-muted p-4 flex-1">
+                                    <div className="text-sm font-semibold mb-1">Deadline</div>
+                                    <div className="text-lg">{new Date(job.deadline).toLocaleDateString()}</div>
+                                </div>
+                            )}
+                        </div>
+                        <div>
+                            <h3 className="font-semibold mb-2">Description</h3>
+                            <p className="text-muted-foreground whitespace-pre-wrap">{job.description}</p>
+                        </div>
+
+                        {/* Applications Section (visible to creator on OPEN/FUNDED jobs) */}
+                        {isCreator && (job.status === 'OPEN' || job.status === 'FUNDED') && (
+                            <div className="space-y-3 p-4 border rounded-md bg-muted/50 flex flex-col sm:flex-row justify-between items-center">
+                                <div>
+                                    <h3 className="font-semibold text-lg flex items-center gap-2">Applications <Badge variant="secondary">{applications.length}</Badge></h3>
+                                    <p className="text-sm text-muted-foreground">Review and accept freelancers for your job.</p>
+                                </div>
+                                <Button asChild>
+                                    <Link href={`/dashboard/jobs/${job.id}/applications`}>
+                                        View Applications
+                                    </Link>
+                                </Button>
                             </div>
                         )}
-                    </div>
-                    <div>
-                        <h3 className="font-semibold mb-2">Description</h3>
-                        <p className="text-muted-foreground whitespace-pre-wrap">{job.description}</p>
-                    </div>
 
-                    {/* Applications Section (visible to creator on OPEN/FUNDED jobs) */}
-                    {isCreator && (job.status === 'OPEN' || job.status === 'FUNDED') && (
-                        <div className="space-y-3 p-4 border rounded-md bg-muted/50 flex flex-col sm:flex-row justify-between items-center">
-                            <div>
-                                <h3 className="font-semibold text-lg flex items-center gap-2">Applications <Badge variant="secondary">{applications.length}</Badge></h3>
-                                <p className="text-sm text-muted-foreground">Review and accept freelancers for your job.</p>
-                            </div>
-                            <Button asChild>
-                                <Link href={`/dashboard/jobs/${job.id}/applications`}>
-                                    View Applications
-                                </Link>
-                            </Button>
-                        </div>
-                    )}
-
-                    {/* Show submissions */}
-                    {submissions.length > 0 && (
-                        <div className="space-y-3">
-                            <h3 className="font-semibold">Submissions</h3>
-                            {submissions.map((sub) => (
-                                <div key={sub.id} className="border rounded p-4 space-y-2">
-                                    <p className="text-sm">{sub.content}</p>
-                                    {sub.attachments && sub.attachments.length > 0 && (
-                                        <div className="space-y-1">
-                                            <p className="text-xs font-semibold text-muted-foreground">Attachments:</p>
-                                            <div className="flex flex-wrap gap-2">
-                                                {sub.attachments.map((filePath, idx) => (
-                                                    <Button
-                                                        key={idx}
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() => downloadFile(filePath)}
-                                                        className="text-xs"
-                                                    >
-                                                        📎 {filePath.split('/').pop()}
-                                                    </Button>
-                                                ))}
+                        {/* Show submissions */}
+                        {submissions.length > 0 && (
+                            <div className="space-y-3">
+                                <h3 className="font-semibold">Submissions</h3>
+                                {submissions.map((sub) => (
+                                    <div key={sub.id} className="border rounded p-4 space-y-2">
+                                        <p className="text-sm">{sub.content}</p>
+                                        {sub.attachments && sub.attachments.length > 0 && (
+                                            <div className="space-y-1">
+                                                <p className="text-xs font-semibold text-muted-foreground">Attachments:</p>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {sub.attachments.map((filePath, idx) => (
+                                                        <Button
+                                                            key={idx}
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() => downloadFile(filePath)}
+                                                            className="text-xs"
+                                                        >
+                                                            📎 {filePath.split('/').pop()}
+                                                        </Button>
+                                                    ))}
+                                                </div>
                                             </div>
-                                        </div>
-                                    )}
-                                    <p className="text-xs text-muted-foreground">
-                                        Submitted {new Date(sub.created_at).toLocaleDateString()}
+                                        )}
+                                        <p className="text-xs text-muted-foreground">
+                                            Submitted {new Date(sub.created_at).toLocaleDateString()}
+                                        </p>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {job.status === 'COMPLETED' && (
+                            <div className="text-center text-green-600 font-bold text-lg py-4">
+                                ✅ Job Completed — Payment has been released
+                            </div>
+                        )}
+                        {job.status === 'DISPUTED' && (
+                            <div className="text-center text-red-600 font-bold text-lg py-4">
+                                ⚠️ This job is under dispute — awaiting admin resolution
+                            </div>
+                        )}
+                        {job.status === 'CANCELLED' && (
+                            <div className="text-center text-muted-foreground font-medium text-lg py-4">
+                                🚫 This job has been cancelled
+                            </div>
+                        )}
+                    </CardContent>
+                    <CardFooter className="flex flex-col gap-4">
+                        {/* Share Section - Only for OPEN/FUNDED jobs */}
+                        {(job.status === 'OPEN' || job.status === 'FUNDED') && (
+                            <div className="w-full border-b pb-4 space-y-3">
+                                <h4 className="text-sm font-semibold">Share this job</h4>
+                                <div className="flex flex-col gap-2">
+                                    <ShareButton
+                                        url={generateJobUrl(job.id)}
+                                        title={job.title}
+                                        text={generateShareText(job)}
+                                        variant="outline"
+                                        className="w-full"
+                                    />
+                                    <SocialShareButtons
+                                        url={generateJobUrl(job.id)}
+                                        text={generateShareText(job)}
+                                    />
+                                </div>
+                            </div>
+                        )}
+
+                        {/* CREATOR: Fund Escrow (when job is OPEN and not yet funded) */}
+                        {job.status === 'OPEN' && isCreator && (
+                            <div className="w-full space-y-3">
+                                <div className="rounded-md border border-yellow-300 bg-yellow-50 p-4">
+                                    <p className="text-sm text-yellow-800 font-medium">This job is not yet funded.</p>
+                                    <p className="text-xs text-yellow-700 mt-1">
+                                        Fund the escrow ({Number(job.budget_sats).toLocaleString()} sats) to make this job visible to workers.
+                                        Make sure you have enough balance in your wallet.
                                     </p>
                                 </div>
-                            ))}
-                        </div>
-                    )}
+                                <Button onClick={handleFundEscrow} disabled={actionLoading} className="w-full">
+                                    {actionLoading ? 'Funding...' : `Fund Escrow (${Number(job.budget_sats).toLocaleString()} sats)`}
+                                </Button>
+                            </div>
+                        )}
 
-                    {job.status === 'COMPLETED' && (
-                        <div className="text-center text-green-600 font-bold text-lg py-4">
-                            ✅ Job Completed — Payment has been released
-                        </div>
-                    )}
-                    {job.status === 'DISPUTED' && (
-                        <div className="text-center text-red-600 font-bold text-lg py-4">
-                            ⚠️ This job is under dispute — awaiting admin resolution
-                        </div>
-                    )}
-                </CardContent>
-                <CardFooter className="flex flex-col gap-4">
-                    {/* Share Section - Only for OPEN/FUNDED jobs */}
-                    {(job.status === 'OPEN' || job.status === 'FUNDED') && (
-                        <div className="w-full border-b pb-4 space-y-3">
-                            <h4 className="text-sm font-semibold">Share this job</h4>
-                            <div className="flex flex-col gap-2">
-                                <ShareButton
-                                    url={generateJobUrl(job.id)}
-                                    title={job.title}
-                                    text={generateShareText(job)}
+                        {/* CREATOR: Cancel job (OPEN or FUNDED, no worker assigned yet) */}
+                        {isCancellableByCreator && (
+                            <div className="w-full">
+                                <Button
                                     variant="outline"
-                                    className="w-full"
-                                />
-                                <SocialShareButtons
-                                    url={generateJobUrl(job.id)}
-                                    text={generateShareText(job)}
-                                />
-                            </div>
-                        </div>
-                    )}
-
-                    {/* CREATOR: Fund Escrow (when job is OPEN and not yet funded) */}
-                    {job.status === 'OPEN' && isCreator && (
-                        <div className="w-full space-y-3">
-                            <div className="rounded-md border border-yellow-300 bg-yellow-50 p-4">
-                                <p className="text-sm text-yellow-800 font-medium">This job is not yet funded.</p>
-                                <p className="text-xs text-yellow-700 mt-1">
-                                    Fund the escrow ({Number(job.budget_sats).toLocaleString()} sats) to make this job visible to workers.
-                                    Make sure you have enough balance in your wallet.
-                                </p>
-                            </div>
-                            <Button onClick={handleFundEscrow} disabled={actionLoading} className="w-full">
-                                {actionLoading ? 'Funding...' : `Fund Escrow (${Number(job.budget_sats).toLocaleString()} sats)`}
-                            </Button>
-                        </div>
-                    )}
-
-                    {/* WORKER: Apply to job */}
-                    {(job.status === 'OPEN' || job.status === 'FUNDED') && !isCreator && !hasApplied && (
-                        <div className="w-full space-y-3">
-                            <Textarea
-                                placeholder="Write a brief cover letter explaining why you're a good fit..."
-                                value={coverLetter}
-                                onChange={e => setCoverLetter(e.target.value)}
-                            />
-                            <Button onClick={handleApply} disabled={actionLoading} className="w-full">
-                                {actionLoading ? 'Applying...' : 'Apply for this Job'}
-                            </Button>
-                        </div>
-                    )}
-
-                    {(job.status === 'OPEN' || job.status === 'FUNDED') && !isCreator && hasApplied && (
-                        <div className="w-full text-center py-3 text-muted-foreground">
-                            ✅ You have already applied to this job
-                        </div>
-                    )}
-
-                    {/* WORKER: Submit work */}
-                    {job.status === 'IN_PROGRESS' && isWorker && (
-                        <div className="w-full space-y-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="submission-text">Work Description</Label>
-                                <Textarea
-                                    id="submission-text"
-                                    placeholder="Describe your work or paste a link..."
-                                    value={submissionText}
-                                    onChange={e => setSubmissionText(e.target.value)}
-                                    rows={4}
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="file-upload">Attachments (optional)</Label>
-                                <Input
-                                    id="file-upload"
-                                    type="file"
-                                    multiple
-                                    onChange={handleFileSelect}
-                                    accept="image/*,application/pdf,.doc,.docx,.txt,.zip"
+                                    size="sm"
+                                    className="w-full text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
+                                    onClick={() => setShowCancelDialog(true)}
                                     disabled={actionLoading}
+                                    aria-label="Cancel this job"
+                                >
+                                    Cancel Job
+                                </Button>
+                            </div>
+                        )}
+
+                        {/* WORKER: Apply to job */}
+                        {(job.status === 'OPEN' || job.status === 'FUNDED') && !isCreator && !hasApplied && (
+                            <div className="w-full space-y-3">
+                                <Textarea
+                                    placeholder="Write a brief cover letter explaining why you're a good fit..."
+                                    value={coverLetter}
+                                    onChange={e => setCoverLetter(e.target.value)}
                                 />
-                                {selectedFiles.length > 0 && (
-                                    <p className="text-xs text-muted-foreground">
-                                        {selectedFiles.length} file(s) selected: {selectedFiles.map(f => f.name).join(', ')}
-                                    </p>
-                                )}
-                            </div>
-                            <Button
-                                onClick={handleSubmitWork}
-                                disabled={actionLoading || !submissionText}
-                                className="w-full"
-                            >
-                                {uploadingFiles ? 'Uploading files...' : actionLoading ? 'Submitting...' : 'Submit Work'}
-                            </Button>
-                        </div>
-                    )}
-
-                    {/* CREATOR: Review submission */}
-                    {job.status === 'REVIEW' && isCreator && (
-                        <div className="w-full space-y-3">
-                            <div className="flex justify-end gap-2">
-                                <Button variant="destructive" onClick={() => document.getElementById('dispute-section')?.scrollIntoView()} disabled={actionLoading}>
-                                    Dispute
-                                </Button>
-                                <Button onClick={handleApprove} disabled={actionLoading} className="bg-green-600 hover:bg-green-700">
-                                    {actionLoading ? 'Processing...' : 'Approve & Pay'}
+                                <Button onClick={handleApply} disabled={actionLoading} className="w-full">
+                                    {actionLoading ? 'Applying...' : 'Apply for this Job'}
                                 </Button>
                             </div>
-                        </div>
-                    )}
+                        )}
 
-                    {/* Dispute section (visible to both parties if job is in REVIEW or IN_PROGRESS) */}
-                    {(job.status === 'REVIEW' || job.status === 'IN_PROGRESS') && (isCreator || isWorker) && (
-                        <div id="dispute-section" className="w-full border-t pt-4 space-y-3">
-                            <h4 className="font-semibold text-sm text-red-600">Raise a Dispute</h4>
-                            <Textarea
-                                placeholder="Explain the reason for the dispute..."
-                                value={disputeReason}
-                                onChange={e => setDisputeReason(e.target.value)}
-                            />
-                            <Button
-                                variant="destructive"
-                                onClick={handleDispute}
-                                disabled={actionLoading || !disputeReason}
-                                className="w-full"
-                            >
-                                {actionLoading ? 'Submitting...' : 'Submit Dispute'}
-                            </Button>
-                        </div>
-                    )}
-                </CardFooter>
-            </Card>
-        </div>
+                        {(job.status === 'OPEN' || job.status === 'FUNDED') && !isCreator && hasApplied && (
+                            <div className="w-full text-center py-3 text-muted-foreground">
+                                ✅ You have already applied to this job
+                            </div>
+                        )}
+
+                        {/* WORKER: Submit work */}
+                        {job.status === 'IN_PROGRESS' && isWorker && (
+                            <div className="w-full space-y-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="submission-text">Work Description</Label>
+                                    <Textarea
+                                        id="submission-text"
+                                        placeholder="Describe your work or paste a link..."
+                                        value={submissionText}
+                                        onChange={e => setSubmissionText(e.target.value)}
+                                        rows={4}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="file-upload">Attachments (optional)</Label>
+                                    <Input
+                                        id="file-upload"
+                                        type="file"
+                                        multiple
+                                        onChange={handleFileSelect}
+                                        accept="image/*,application/pdf,.doc,.docx,.txt,.zip"
+                                        disabled={actionLoading}
+                                    />
+                                    {selectedFiles.length > 0 && (
+                                        <p className="text-xs text-muted-foreground">
+                                            {selectedFiles.length} file(s) selected: {selectedFiles.map(f => f.name).join(', ')}
+                                        </p>
+                                    )}
+                                </div>
+                                <Button
+                                    onClick={handleSubmitWork}
+                                    disabled={actionLoading || !submissionText}
+                                    className="w-full"
+                                >
+                                    {uploadingFiles ? 'Uploading files...' : actionLoading ? 'Submitting...' : 'Submit Work'}
+                                </Button>
+                            </div>
+                        )}
+
+                        {/* CREATOR: Review submission */}
+                        {job.status === 'REVIEW' && isCreator && (
+                            <div className="w-full space-y-3">
+                                <div className="flex justify-end gap-2">
+                                    <Button variant="destructive" onClick={() => document.getElementById('dispute-section')?.scrollIntoView()} disabled={actionLoading}>
+                                        Dispute
+                                    </Button>
+                                    <Button onClick={handleApprove} disabled={actionLoading} className="bg-green-600 hover:bg-green-700">
+                                        {actionLoading ? 'Processing...' : 'Approve & Pay'}
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Dispute section (visible to both parties if job is in REVIEW or IN_PROGRESS) */}
+                        {(job.status === 'REVIEW' || job.status === 'IN_PROGRESS') && (isCreator || isWorker) && (
+                            <div id="dispute-section" className="w-full border-t pt-4 space-y-3">
+                                <h4 className="font-semibold text-sm text-red-600">Raise a Dispute</h4>
+                                <Textarea
+                                    placeholder="Explain the reason for the dispute..."
+                                    value={disputeReason}
+                                    onChange={e => setDisputeReason(e.target.value)}
+                                />
+                                <Button
+                                    variant="destructive"
+                                    onClick={handleDispute}
+                                    disabled={actionLoading || !disputeReason}
+                                    className="w-full"
+                                >
+                                    {actionLoading ? 'Submitting...' : 'Submit Dispute'}
+                                </Button>
+                            </div>
+                        )}
+                    </CardFooter>
+                </Card>
+            </div>
+        </>
     )
 }

@@ -69,6 +69,7 @@ bereka-app/
 │       ├── lnbits-webhook/index.ts
 │       ├── fund-escrow/index.ts
 │       ├── approve-payout/index.ts
+│       ├── cancel-job/index.ts
 │       ├── resolve-dispute/index.ts
 │       └── send-notification/index.ts
 ├── .github/workflows/
@@ -400,6 +401,7 @@ Deno.serve(async (req) => {
 | `check-payment` | `getAuthenticatedUser` | Yes |
 | `fund-escrow` | `getAuthenticatedUser` | Yes |
 | `approve-payout` | `getAuthenticatedUser` | Yes |
+| `cancel-job` | `getAuthenticatedUser` | Yes |
 | `resolve-dispute` | `getAuthenticatedUser` + admin role check | Yes |
 | `send-notification` | Internal only (service role) | No (internal) |
 | `lnbits-webhook` | `verifyWebhookSecret` | No (`--no-verify-jwt`) |
@@ -462,10 +464,11 @@ OPEN --> FUNDED --> IN_PROGRESS --> REVIEW --> COMPLETED
 
 | Function | Called By | Purpose |
 |----------|----------|---------|
-| `move_funds(from, to, amount, ref_type, ref_id)` | fund-escrow, atomic_payout, atomic_dispute_payout | Atomic fund transfer with ledger entry |
+| `move_funds(from, to, amount, ref_type, ref_id)` | fund-escrow, atomic_payout, atomic_cancel_job, atomic_dispute_payout | Atomic fund transfer with ledger entry |
 | `get_account_id(user_id, type)` | fund-escrow | Look up account UUID |
 | `process_external_deposit(user_id, amount, hash)` | processIncomingPayment | Credit user balance from Lightning deposit |
 | `atomic_payout(job_id, creator_id, worker_id, budget)` | approve-payout | Pay worker + platform fee atomically |
+| `atomic_cancel_job(job_id, creator_id)` | cancel-job | Cancel job + refund escrow atomically |
 | `atomic_dispute_payout(job_id, resolution, admin_id)` | resolve-dispute | Resolve dispute atomically |
 
 All SECURITY DEFINER functions use `SET search_path = public`.
@@ -612,6 +615,7 @@ Business-critical actions are recorded in the `audit_log` table via `writeAuditL
 |--------|-------------|---------------|
 | `payout.approved` | approve-payout | job |
 | `escrow.funded` | fund-escrow | job |
+| `job.cancelled` | cancel-job | job |
 | `dispute.resolved` | resolve-dispute | dispute |
 | `wallet.created` | create-wallet | profile |
 | `payment.invoice_created` | create-invoice | payment |
@@ -714,7 +718,7 @@ All pages listed below have been audited and updated to WCAG 2.2 AA:
 | Signup | ✅ | — | ✅ `role="alert"` | |
 | Dashboard | ✅ | — | — | Server component |
 | Wallet | ✅ | ✅ Payment, countdown, expiry | — | QR accessible, transaction labels |
-| Jobs | ✅ | ✅ Search results count | — | Nested interactive fixed |
+| Job Detail | ✅ | ✅ | — | Cancel button + cancellation dialog added |
 | Create Job | ✅ | — | ✅ `role="alert"` | |
 | Applications | ✅ | — | — | |
 | Disputes | ✅ | — | — | |

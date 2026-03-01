@@ -155,6 +155,16 @@ export interface FundEscrowResponse {
   success: boolean
 }
 
+export interface CancelJobRequest {
+  jobId: string
+}
+
+export interface CancelJobResponse {
+  success: boolean
+  refunded: boolean
+  amount_sats: number
+}
+
 export interface ApprovePayoutRequest {
   jobId: string
 }

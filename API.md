@@ -174,6 +174,44 @@ Creator approves the worker's submission. Atomically transfers funds from escrow
 
 ---
 
+### POST /cancel-job
+
+Cancels a job posted by the authenticated creator. Only available for jobs in `OPEN` or `FUNDED` state. If the job is `FUNDED`, the escrowed budget is atomically refunded to the creator's available balance.
+
+**Auth:** JWT (required — must be the job creator)
+
+**Request Body:**
+```json
+{
+  "jobId": "uuid"
+}
+```
+
+**Response:**
+```json
+{ "success": true, "refunded": true, "amount_sats": 5000 }
+```
+
+For `OPEN` jobs (escrow not yet funded):
+```json
+{ "success": true, "refunded": false, "amount_sats": 0 }
+```
+
+**Idempotency:** The `atomic_cancel_job` database function checks if the job is already `CANCELLED` and returns early if so.
+
+**Side Effects:**
+- `atomic_cancel_job` RPC: if `FUNDED`, ESCROW → creator AVAILABLE (`ESCROW_REFUND` ledger entry)
+- Updates `escrow_holds.status` to `REFUNDED` (FUNDED jobs only)
+- Updates job `status` to `CANCELLED`
+- Writes `job.cancelled` audit log entry
+
+**Errors:**
+- `400` Unauthorized (not the job creator)
+- `400` Job is not in `OPEN` or `FUNDED` state
+- `400` No active escrow hold found (data integrity error)
+
+---
+
 ### POST /resolve-dispute
 
 Admin resolves a disputed job. Atomically distributes escrowed funds based on the resolution.
@@ -249,6 +287,7 @@ These functions are called by Edge Functions via `supabase.rpc()`:
 | `increment_balance(account_id, amount)` | Increment an account balance |
 | `process_external_deposit(user_id, amount, hash)` | Double-entry deposit from Lightning |
 | `atomic_payout(job_id, creator_id, worker_id, budget)` | Atomic payout with platform fee |
+| `atomic_cancel_job(job_id, creator_id)` | Atomic job cancellation with escrow refund |
 | `atomic_dispute_payout(job_id, resolution, admin_id)` | Atomic dispute resolution |
 
 ---

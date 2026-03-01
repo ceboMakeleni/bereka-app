@@ -20,7 +20,7 @@ import { type SupabaseClient } from "npm:@supabase/supabase-js@2";
 
 interface AuditEntry {
     actorId: string | null;
-    actorRole: "worker" | "client" | "admin" | "system";
+    actorRole: "user" | "worker" | "client" | "admin" | "system";
     action: string;
     resourceType: string;
     resourceId: string;
