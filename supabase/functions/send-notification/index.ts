@@ -116,6 +116,10 @@ Deno.serve(async (req) => {
         subject = `You received a new rating: ${jobTitle}`;
         body = `Someone has left you a rating for the job "${jobTitle}". Visit your dashboard to see it.`;
         break;
+      case "NEW_CHAT_MESSAGE":
+        subject = `New message: ${jobTitle}`;
+        body = `You have a new chat message regarding the job "${jobTitle}". Open your dashboard to reply.`;
+        break;
       default:
         subject = "Bereka notification";
         body = "You have a new notification on Bereka. Check your dashboard for details.";

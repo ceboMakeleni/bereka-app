@@ -320,6 +320,98 @@ Submits a 1–5 star rating from one job party to the other after a job is compl
 
 ---
 
+### POST /send-chat-message
+
+Sends a text message in a job chat room. Messages containing phone numbers, emails, or URLs are flagged automatically.
+
+**Auth:** JWT (required — must be a participant in the chat room)
+
+**Request Body:**
+```json
+{
+  "roomId": "uuid",
+  "content": "Hello, I've started working on the task!"
+}
+```
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `roomId` | UUID | ✅ | The chat room ID |
+| `content` | string | ✅ | Max 2000 characters |
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": {
+    "id": "uuid",
+    "content": "Hello, I've started working on the task!",
+    "is_flagged": false,
+    "created_at": "2026-03-02T00:00:00Z"
+  }
+}
+```
+
+**Business Rules:**
+- Sender must be `creator_id` or `worker_id` of the chat room
+- Content is checked against PII blocklist (phone numbers, emails) — flagged messages are stored with `is_flagged = true`
+- Messages delivered in real-time via Supabase Realtime
+
+**Side Effects:**
+- Inserts a row into `chat_messages`
+- Writes `chat.message_sent` audit log entry
+- Sends `NEW_CHAT_MESSAGE` notification to the other participant (non-blocking)
+
+**Errors:**
+- `400` Missing roomId or content
+- `400` Content exceeds 2000 characters
+- `400` Chat room not found
+- `400` Unauthorized — not a participant
+
+---
+
+### POST /report-chat-message
+
+Reports a chat message for moderation review.
+
+**Auth:** JWT (required — must be a participant in the chat room)
+
+**Request Body:**
+```json
+{
+  "messageId": "uuid",
+  "reason": "This message contains harassment"
+}
+```
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `messageId` | UUID | ✅ | The message to report |
+| `reason` | string | ✅ | Max 1000 characters |
+
+**Response:**
+```json
+{ "success": true }
+```
+
+**Business Rules:**
+- Reporter must be a participant in the message's chat room
+- Users cannot report their own messages
+- Duplicate reports from same user are rejected (DB unique constraint)
+
+**Side Effects:**
+- Inserts a row into `chat_reports` with status `OPEN`
+- Writes `chat.message_reported` audit log entry
+
+**Errors:**
+- `400` Missing messageId or reason
+- `400` Reason exceeds 1000 characters
+- `400` Message not found
+- `400` Not a participant / Cannot report own message
+- `400` Already reported this message
+
+---
+
 ## Database RPCs
 
 These functions are called by Edge Functions via `supabase.rpc()`:

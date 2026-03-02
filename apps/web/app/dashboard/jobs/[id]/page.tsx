@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { useParams, useRouter } from "next/navigation"
+import { useParams, useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase"
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from "@/components/ui/card"
@@ -23,7 +23,9 @@ import { SocialShareButtons } from "@/components/SocialShareButtons"
 import { generateJobUrl, generateShareText } from "@/lib/share-utils"
 import { StarRating } from "@/components/ui/star-rating"
 import { toast } from "sonner"
-import { AlertTriangle } from "lucide-react"
+import { AlertTriangle, MessageSquare, ChevronDown, ChevronUp } from "lucide-react"
+import { ChatPanel } from "@/components/ui/chat-panel"
+import { useChat } from "@/lib/hooks/useChat"
 
 interface Job {
     id: string
@@ -89,6 +91,13 @@ export default function JobDetailsPage() {
     const [ratingComment, setRatingComment] = useState("")
     const [showRatingDialog, setShowRatingDialog] = useState(false)
     const [ratingLoading, setRatingLoading] = useState(false)
+    // Chat state
+    const searchParams = useSearchParams()
+    const [chatRoomId, setChatRoomId] = useState<string | null>(null)
+    const [chatOpen, setChatOpen] = useState(searchParams.get('tab') === 'chat')
+    const [chatCreating, setChatCreating] = useState(false)
+    const [senderNames, setSenderNames] = useState<Record<string, string>>({})
+    const { messages, loading: chatLoading, sending: chatSending, error: chatError, sendMessage } = useChat({ roomId: chatRoomId })
 
     const fetchJob = useCallback(async () => {
         const supabase = createClient()
@@ -150,6 +159,65 @@ export default function JobDetailsPage() {
 
         setLoading(false)
     }, [id])
+
+    // Fetch or create chat room when job is loaded (for eligible statuses)
+    useEffect(() => {
+        if (!job || !user) return
+
+        const chatStatuses = ['IN_PROGRESS', 'REVIEW', 'COMPLETED', 'DISPUTED']
+        const isParticipant = user.id === job.creator_id || user.id === job.worker_id
+
+        if (!chatStatuses.includes(job.status) || !isParticipant || !job.worker_id) return
+
+        const fetchOrCreateRoom = async () => {
+            const supabase = createClient()
+
+            // Try to fetch existing room
+            const { data: existingRoom } = await supabase
+                .from('chat_rooms')
+                .select('id')
+                .eq('job_id', job.id)
+                .single()
+
+            if (existingRoom) {
+                setChatRoomId(existingRoom.id)
+            } else {
+                // Auto-create room
+                setChatCreating(true)
+                const { data: newRoom, error: createError } = await supabase
+                    .from('chat_rooms')
+                    .insert({
+                        job_id: job.id,
+                        creator_id: job.creator_id,
+                        worker_id: job.worker_id,
+                    })
+                    .select('id')
+                    .single()
+
+                if (!createError && newRoom) {
+                    setChatRoomId(newRoom.id)
+                }
+                setChatCreating(false)
+            }
+
+            // Fetch participant names
+            const ids = [job.creator_id, job.worker_id].filter(Boolean) as string[]
+            const { data: profiles } = await supabase
+                .from('profiles')
+                .select('id, username')
+                .in('id', ids)
+
+            if (profiles) {
+                const names: Record<string, string> = {}
+                profiles.forEach((p: { id: string; username: string | null }) => {
+                    names[p.id] = p.username ?? 'Unknown'
+                })
+                setSenderNames(names)
+            }
+        }
+
+        fetchOrCreateRoom()
+    }, [job, user])
 
     useEffect(() => {
         fetchJob()
@@ -865,6 +933,67 @@ export default function JobDetailsPage() {
                         )}
                     </CardFooter>
                 </Card>
+
+                {/* Chat Section — visible to participants on IN_PROGRESS, REVIEW, COMPLETED, DISPUTED */}
+                {(isCreator || isWorker) &&
+                    job.worker_id &&
+                    ['IN_PROGRESS', 'REVIEW', 'COMPLETED', 'DISPUTED'].includes(job.status) && (
+                        <Card>
+                            <CardHeader
+                                className="cursor-pointer select-none"
+                                onClick={() => setChatOpen(!chatOpen)}
+                                role="button"
+                                aria-expanded={chatOpen}
+                                aria-controls="chat-panel"
+                                tabIndex={0}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                        e.preventDefault()
+                                        setChatOpen(!chatOpen)
+                                    }
+                                }}
+                            >
+                                <div className="flex items-center justify-between">
+                                    <CardTitle className="text-lg flex items-center gap-2">
+                                        <MessageSquare className="h-5 w-5" aria-hidden="true" />
+                                        Job Chat
+                                    </CardTitle>
+                                    {chatOpen ? (
+                                        <ChevronUp className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
+                                    ) : (
+                                        <ChevronDown className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
+                                    )}
+                                </div>
+                                <CardDescription>
+                                    Private conversation between you and{' '}
+                                    {isCreator
+                                        ? senderNames[job.worker_id] || 'the worker'
+                                        : senderNames[job.creator_id] || 'the job poster'}
+                                </CardDescription>
+                            </CardHeader>
+                            {chatOpen && (
+                                <CardContent id="chat-panel">
+                                    <div className="h-[450px] border rounded-lg overflow-hidden">
+                                        {chatCreating ? (
+                                            <div className="flex items-center justify-center h-full text-muted-foreground">
+                                                Setting up chat…
+                                            </div>
+                                        ) : (
+                                            <ChatPanel
+                                                messages={messages}
+                                                loading={chatLoading}
+                                                sending={chatSending}
+                                                error={chatError}
+                                                currentUserId={user?.id ?? ''}
+                                                senderNames={senderNames}
+                                                onSendMessage={sendMessage}
+                                            />
+                                        )}
+                                    </div>
+                                </CardContent>
+                            )}
+                        </Card>
+                    )}
             </div>
         </>
     )

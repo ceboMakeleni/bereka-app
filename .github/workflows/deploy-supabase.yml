@@ -80,6 +80,10 @@ jobs:
           supabase functions deploy check-payment
           supabase functions deploy fund-escrow
           supabase functions deploy approve-payout
+          supabase functions deploy cancel-job
           supabase functions deploy resolve-dispute
+          supabase functions deploy submit-rating
           supabase functions deploy send-notification
+          supabase functions deploy send-chat-message
+          supabase functions deploy report-chat-message
           supabase functions deploy lnbits-webhook --no-verify-jwt

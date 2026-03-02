@@ -35,8 +35,9 @@ bereka-app/
 │   │       ├── wallet/page.tsx    # Balance + Lightning top-up
 │   │       ├── jobs/page.tsx      # Job marketplace with filters
 │   │       ├── jobs/create/page.tsx  # Create job + fund escrow
-│   │       ├── jobs/[id]/page.tsx    # Job detail (apply/accept/submit/approve/dispute)
+│   │       ├── jobs/[id]/page.tsx    # Job detail (apply/accept/submit/approve/dispute/chat)
 │   │       ├── admin/page.tsx     # Admin: disputes + ledger (role-gated)
+│   │       ├── messages/page.tsx  # Chat hub — list of active job chats
 │   │       └── settings/page.tsx  # Profile + wallet management
 │   ├── components/ui/             # Shadcn-style UI primitives
 │   ├── lib/
@@ -72,6 +73,8 @@ bereka-app/
 │       ├── cancel-job/index.ts
 │       ├── resolve-dispute/index.ts
 │       ├── submit-rating/index.ts
+│       ├── send-chat-message/index.ts
+│       ├── report-chat-message/index.ts
 │       └── send-notification/index.ts
 ├── .github/workflows/
 │   └── deploy.yml                 # CI/CD: migrations + edge functions
@@ -405,6 +408,8 @@ Deno.serve(async (req) => {
 | `cancel-job` | `getAuthenticatedUser` | Yes |
 | `resolve-dispute` | `getAuthenticatedUser` + admin role check | Yes |
 | `submit-rating` | `getAuthenticatedUser` | Yes |
+| `send-chat-message` | `getAuthenticatedUser` | Yes |
+| `report-chat-message` | `getAuthenticatedUser` | Yes |
 | `send-notification` | Internal only (service role) | No (internal) |
 | `lnbits-webhook` | `verifyWebhookSecret` | No (`--no-verify-jwt`) |
 

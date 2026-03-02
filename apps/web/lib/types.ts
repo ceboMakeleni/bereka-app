@@ -124,6 +124,33 @@ export interface Rating {
   created_at: string
 }
 
+export interface ChatRoom {
+  id: string
+  job_id: string
+  creator_id: string
+  worker_id: string
+  created_at: string
+}
+
+export interface ChatMessage {
+  id: string
+  room_id: string
+  sender_id: string
+  content: string
+  is_flagged: boolean
+  read_at: string | null
+  created_at: string
+}
+
+export interface ChatReport {
+  id: string
+  message_id: string
+  reporter_id: string
+  reason: string
+  status: 'OPEN' | 'RESOLVED'
+  created_at: string
+}
+
 // Edge Function Request/Response Types
 
 export interface CreateWalletRequest {
@@ -204,11 +231,30 @@ export interface Notification {
 }
 
 export interface SendNotificationRequest {
-  type: 'APPLICATION_RECEIVED' | 'JOB_ACCEPTED' | 'SUBMISSION_READY' | 'PAYOUT_APPROVED' | 'DISPUTE_OPENED' | 'DISPUTE_RESOLVED' | 'PAYMENT_RECEIVED' | 'RATING_SUBMITTED'
+  type: 'APPLICATION_RECEIVED' | 'JOB_ACCEPTED' | 'SUBMISSION_READY' | 'PAYOUT_APPROVED' | 'DISPUTE_OPENED' | 'DISPUTE_RESOLVED' | 'PAYMENT_RECEIVED' | 'RATING_SUBMITTED' | 'NEW_CHAT_MESSAGE'
   recipientUserId: string
   jobId?: string
   amount?: number
   paymentHash?: string
+}
+
+export interface SendChatMessageRequest {
+  roomId: string
+  content: string
+}
+
+export interface SendChatMessageResponse {
+  success: boolean
+  message: ChatMessage
+}
+
+export interface ReportChatMessageRequest {
+  messageId: string
+  reason: string
+}
+
+export interface ReportChatMessageResponse {
+  success: boolean
 }
 
 export interface SubmitRatingRequest {
@@ -250,6 +296,13 @@ export interface DisputeWithJob extends Dispute {
   job?: Job
   opener?: Profile
   resolver?: Profile
+}
+
+export interface ChatRoomWithDetails extends ChatRoom {
+  job?: Job
+  creator?: Profile
+  worker?: Profile
+  last_message?: ChatMessage | null
 }
 
 // Form Types
