@@ -54,7 +54,14 @@ bereka-app/
 ├── supabase/
 │   ├── config.toml                # Local Supabase config
 │   ├── migrations/
-│   │   └── 0001_initial_schema.sql  # Single consolidated migration
+│   │   ├── 0001_initial_schema.sql     # Core tables (jobs, profiles, ledger, etc.)
+│   │   ├── 0010_audit_logging.sql      # audit_log + edge_function_logs tables
+│   │   ├── 0011_unify_roles.sql        # Collapsed worker/client → single 'user' role
+│   │   ├── 0012_cancel_job.sql         # atomic_cancel_job() function
+│   │   ├── 0013_rating_system.sql      # ratings table
+│   │   ├── 0014_chat_system.sql        # chat_rooms, chat_messages, chat_reports
+│   │   ├── 0015_metrics.sql            # Analytics views, materialized views, app_events
+│   │   └── 0016_metrics_cron.sql       # pg_cron nightly MV refresh at 03:00 UTC
 │   └── functions/                 # Deno Edge Functions
 │       ├── deno.json              # Deno compiler options + import map
 │       ├── _shared/               # Shared modules (NEVER duplicate logic)
@@ -75,6 +82,7 @@ bereka-app/
 │       ├── submit-rating/index.ts
 │       ├── send-chat-message/index.ts
 │       ├── report-chat-message/index.ts
+│       ├── admin-metrics/index.ts       # Admin-only metrics API (multi-route, ?type=)
 │       └── send-notification/index.ts
 ├── .github/workflows/
 │   └── deploy.yml                 # CI/CD: migrations + edge functions
@@ -731,4 +739,107 @@ All pages listed below have been audited and updated to WCAG 2.2 AA:
 | Applications | ✅ | — | — | |
 | Disputes | ✅ | — | — | |
 | Settings | ✅ | — | — | |
-| Admin | ✅ | — | — | |
+| Admin | ✅ | — | — | Metrics tab added (4th tab) |
+
+---
+
+## 14. Metrics Instrumentation
+
+### 14.1 Overview
+
+The admin dashboard has a **Metrics** tab at `/dashboard/admin` (tab 4). It is backed by:
+
+| Layer | Object | Description |
+|---|---|---|
+| DB table | `app_events` | Supplemental append-only analytics log |
+| DB views | `v_marketplace_overview`, `v_financials_overview`, `v_trust_safety_overview` | Real-time KPI views over core tables |
+| Materialized views | `mv_marketplace_funnel_daily`, `mv_financials_daily`, `mv_trust_safety_daily`, `mv_category_weekly`, `mv_supply_demand_weekly` | Pre-aggregated for performance |
+| DB function | `refresh_metrics_materialized_views()` | Refreshes all 5 MVs concurrently |
+| Cron job | `bereka-refresh-metrics-views` | Runs daily at 03:00 UTC via pg_cron |
+| Edge function | `admin-metrics` | Multi-route admin-only metrics API |
+| Frontend | `apps/web/app/dashboard/admin/page.tsx` (tab 4) | KPI cards, funnel, categories, stuck jobs |
+
+### 14.2 Rule: Update Metrics When Adding Features
+
+**This is mandatory.** When you add or modify a feature, you MUST assess whether the metrics system needs updating. Use the following checklist:
+
+#### When adding a new job lifecycle state or transition
+- Update `v_marketplace_overview` to include the new status in the relevant `COUNT(*) FILTER` clause.
+- Update `mv_marketplace_funnel_daily` similarly.
+- If the state affects financial flow (escrow, payout, refund), update `v_financials_overview` and `mv_financials_daily`.
+
+#### When adding a new financial transaction type
+- Add the new `reference_type` to the relevant FILTER clauses in `v_financials_overview` and `mv_financials_daily`.
+- Reference types currently handled: `PAYOUT`, `PLATFORM_FEE`, `ESCROW_FUND`, `ESCROW_REFUND`, `DISPUTE_REFUND`, `DISPUTE_SPLIT_CREATOR`, `DISPUTE_PAY_*`.
+
+#### When adding a new trust & safety surface
+- Add the new table/event to `v_trust_safety_overview` and `mv_trust_safety_daily`.
+- Examples: a new `user_reports` table, a `flagged_jobs` table, etc.
+
+#### When adding a new user role or participant type
+- Update active user counts in `v_marketplace_overview` (`active_posters_30d`, `active_workers_30d`) if the new role affects supply/demand.
+
+#### When adding a new data model (table)
+- Assess whether it represents a KPI (e.g., a `subscriptions` table → add to financials overview).
+- If yes, add it to the appropriate view and the admin Metrics tab UI.
+
+#### When adding a new edge function that handles payments or state changes
+- Consider emitting an `app_events` row from the function for fine-grained analytics that the core tables don't already capture. Use:
+  ```ts
+  await supabase.from('app_events').insert({
+    event_name: 'your_event_name',  // snake_case, past tense
+    user_id: actorId,
+    job_id: jobId ?? null,
+    source: 'server',
+    metadata: { /* relevant context */ },
+  })
+  ```
+- **Do NOT emit `app_events` for things already tracked** by `audit_log` or core table mutations (jobs, ledger_entries, disputes, ratings, chat_reports). Avoid double-counting.
+
+### 14.3 Metrics Migration Convention
+
+- Metrics changes to SQL views and MVs go into a **new numbered migration file** (`0017_...`, `0018_...`, etc.).
+- Use `CREATE OR REPLACE VIEW` — never `DROP VIEW` + `CREATE VIEW` (breaks dependent objects).
+- For MV changes, **drop and recreate** since MVs don't support `CREATE OR REPLACE`:
+  ```sql
+  DROP MATERIALIZED VIEW IF EXISTS mv_example CASCADE;
+  CREATE MATERIALIZED VIEW mv_example AS ...;
+  CREATE UNIQUE INDEX ...
+  ```
+- After any MV schema change, call `refresh_metrics_materialized_views()` in the migration to repopulate.
+
+### 14.4 Event Naming Conventions
+
+All `app_events.event_name` values must:
+- Be `snake_case` and past tense: `job_posted`, `payout_succeeded`, `dispute_opened`
+- Be namespaced by domain: `job_*`, `payment_*`, `chat_*`, `user_*`, `dispute_*`, `rating_*`
+
+**Current reserved event names** (emitted by system, do not reuse):
+
+| Event name | Source | Notes |
+|---|---|---|
+| *(none yet — app_events reserved for future use)* | | |
+
+### 14.5 Materialized View Refresh
+
+The materialized views are refreshed:
+1. **Automatically** — nightly at 03:00 UTC via pg_cron job `bereka-refresh-metrics-views`
+2. **On-demand** — admin can click "Refresh Views" in the Metrics tab, which calls `refresh_metrics_materialized_views()` via Supabase RPC
+3. **Post-migration** — call `SELECT refresh_metrics_materialized_views();` at the end of any migration that modifies source tables at scale
+
+To check cron job status:
+```sql
+SELECT jobid, jobname, schedule, command, active FROM cron.job;
+SELECT * FROM cron.job_run_details ORDER BY start_time DESC LIMIT 10;
+```
+
+### 14.6 Admin Metrics UI Location
+
+The Metrics tab is the **4th tab** in `apps/web/app/dashboard/admin/page.tsx`.
+
+When you add a new widget to the Metrics tab:
+- Add the TypeScript interface for the data shape at the top of the file (with the other metrics interfaces)
+- Add a `fetch*` call inside `fetchMetrics()` using a direct Supabase view query
+- Add the UI section inside the `{activeTab === 'metrics' && (...)}` block
+- Follow the existing Card + table pattern for consistency
+- Use existing Shadcn components only — do not add new chart libraries
